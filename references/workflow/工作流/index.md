@@ -1,0 +1,320 @@
+# 工作流：workflow yml
+
+## 1. 资产定位与边界
+
+`workflow` 描述完整的**业务审批流程**：流程基础信息、活动（节点）、变迁（线）、活动按钮、退回配置、流程材料、表单数据表映射、流程版本等。
+
+- 与 metadata 目录的对应关系：`metadata/<apptag>/workflow/<流程名>.workflow.yml`
+- 不在本资产范围内的事：
+  - 表单字段定义属于 `mis`（workflow 通过 `tableid` 引用），详见 `references/mis/数据模型/index.md`
+  - 流程触发的复杂动作/外部数据流转属于 `event`（动作流），详见 `references/event/动作流/index.md`
+  - 状态机型工作流、加办/抄送、Java 外部方法实现属于"不在本 skill 范围内的事"，详见下文「[不在本-skill-范围内的事](#不在本-skill-范围内的事)」
+
+## 2. 文档导航
+
+> 本资产的内容由本 index.md 承载主干（顶层结构 / 红线 / 校验 / 关系），同级子目录承载详细字段定义与场景示例。
+> 章节速查：
+> - § 文件位置与命名：见下文「[文件位置与命名](#文件位置与命名)」
+> - § 设计红线（节点拆分 / 名称 / 流转闭环 / GUID 一致性 / 退回闭环）：见下文「[⛔-设计红线（强校验，违反会导致流程发布失败或运行异常）](#-设计红线强校验违反会导致流程发布失败或运行异常)」
+> - § 顶层结构 + 数据关系：见下文「[顶层结构](#顶层结构)」「[数据关系（必遵守）](#数据关系必遵守)」
+> - § 占位符 `[#=xxx#]`：见下文「[`[#=xxx#]` 占位符](#xxx-占位符)」
+> - § 校验规则与修复指引：见下文「[校验规则与修复指引（validate_yml.py 实际执行）](#校验规则与修复指引validate_ymlpy-实际执行)」
+> - § 子目录详细文档：见下文「[子目录导航表](#子目录导航表)」与开篇的「[文档导航](#文档导航)」表格（基础骨架 / 生成与校验 / 场景示例）
+
+## 3. 生成与修改对话速查
+
+> 详细对话脚本与脚本调用：见下文「[修改已有工作流](#修改已有工作流)」「[快速生成脚本](#快速生成脚本)」与子目录 `生成与校验/06-脚本使用指南.md`。生成前**必读**「[🔍 生成前重点检查清单（每次生成工作流都必须自检）](#-生成前重点检查清单每次生成工作流都必须自检)」5 条与「[⛔ 设计红线](#-设计红线强校验违反会导致流程发布失败或运行异常)」。
+
+## 4. 与其他资产的引用关系
+
+- 引用其他资产：
+  - `workflowPvMaterial.materialguid` + `workflowPvMisTableSet.tableid` 引用 `mis` 表（表单数据落地）
+  - `workflowPvMaterial.formId` 关联具体表单（pagedesigne 或线上设计器）
+- 被其他资产引用：
+  - `event`（动作流）的"工作流触发"模式通过流程 `processguid` 触发流程；流程钩子事件（`workflowEvent`）也可绑定到 event
+  - 跨应用引用通过 `appref` 的 `engineguid: workflow` 暴露
+- 跨资产校验脚本：`scripts/validate_yml.py --check-refs <metadata>`
+
+---
+
+`workflow` 描述完整的**业务审批流程**：流程基础信息、活动（节点）、变迁（线）、活动按钮、退回配置、流程材料、表单数据表映射、流程版本等。
+
+## 文档导航
+
+| 子文档 | 何时读 |
+|---------|--------|
+| **基础骨架/** | 查看具体节点字段定义时按需读 |
+| ├─ `01-流程节点.md` | 5 类节点完整定义 + workflowProcess |
+| ├─ `02-活动按钮.md` | 按钮字段、退回配置、工作流扩展字段 |
+| ├─ `03-流转关系.md` | transition 完整定义 + 流转条件（workflowTransitionCondition） |
+| ├─ `04-表单材料与数据表.md` | workflowPvMaterial + workflowPvMisTableSet + 相关数据（workflowContext） |
+| ├─ `05-流程版本.md` | workflowProcessVersion + 工作流扩展字段 |
+| └─ `06-外部方法与事件.md` | method + workflowMethodParameter + workflowEvent |
+| **生成与校验/** | 生成和校验工作流前读 |
+| ├─ `01~05-*.md` | AI 生成流程指南 |
+| ├─ `06-脚本使用指南.md` | add_workflow.py + validate_yml.py 用法 |
+| └─ `07-字段类型约束表.md` | **生成前必读**，数字/字符串类型核对 |
+| **场景示例/** | 生成前参考对应复杂度的示例 |
+| ├─ `01-简单审批流.md` | 最小骨架 3 节点示例 |
+| ├─ `02-主子流程.md` | 主流程调用子流程节点 |
+| ├─ `03-自定义流程.md` | 自定义流程设计按钮 |
+| ├─ `04-自由流程.md` | 自由流转与退回禁用 |
+| └─ `05-条件分支与外部方法.md` | 相关数据、流转条件、外部方法与动作流 ruleGuid |
+
+---
+
+## 🔍 生成前重点检查清单（每次生成工作流都必须自检）
+
+**任何工作流 yml 生成前后，必须按照以下 5 条逐项自检。任何 1 条不达标就不能交付，必须先修复或回到对话脚本补全信息。**
+
+### 1. yaml 文件结构正确及完整性
+
+识别**必要结构元素是否齐全**，缺一不可：
+
+- 顶层：`type: workflow` + `workFlow:`
+- `workFlow.workflowProcess`：流程基础信息（含 `processguid / processname`）
+- `workFlow.workflowVersion`：版本结构，下含：
+  - `activity`：活动数组
+  - `transition`：变迁数组
+  - `workflowConfig`：退回配置数组（无退回按钮时可为空数组）
+  - `workflowPvMaterial`：流程版本材料（**至少 1 条**）
+  - `workflowPvMisTableSet`：表单数据表映射（与材料 1:1）
+  - `workflowProcessVersion`：流程版本详情
+
+### 2. 各节点结构完整性（必填项不能缺）
+
+每个 `activity` 节点都必填：
+
+- `activityguid`、`activityname`、`activitydispname`、`processversionguid`
+- `activitytype`（10/20/30/40/90/100 等）、`vmlid`
+- `iconx`、`icony`（字符串，不是数字）
+
+**按 activitytype 分别校验必填项**：
+
+| 类型 | 必填项 | 必空字段（写 `null`） |
+|------|--------|------|
+| 开始（10） | 上述通用项；`splittype=30` | `multitransactormode / handleurl / mobilehandleurl / isallowaddattachfile / timelimitenable / earlywarning_enable / isPassWhenNoTransactor / jointype` |
+| 申请（30, name="申请"） | 上述通用项；`splittype=30 / jointype=30`；`handleurl='[#=FirstMaterialUrl#]'`；`multitransactormode=10` | — |
+| 审批（30, 自定义 name） | 同申请；含 `workflowActivityOperation`（至少 1 个通过按钮） | — |
+| 结束（20） | 通用项；`jointype=30` | 同开始节点 + `splittype` |
+| 浏览（100） | 通用项；`handleurl='[#=FirstMaterialUrl#]'`；`mobileHandleType=view` | `multitransactormode / isallowaddattachfile / timelimitenable / earlywarning_enable / isPassWhenNoTransactor / jointype` |
+
+每个 `transition` 必填：`transitionguid / processversionguid / fromactivityguid / toactivityguid / transitionname / vmlid (≥2)`。
+
+每个退回按钮必填：`operationtype=30 / targetactivity='[#=AllBeforeActivity#]' / backtargetscope='1' / multiTransctorMode='OR'`。
+
+### 3. 各节点间的关联关系正确性
+
+**父子层级与属性引用闭合**：
+
+- **processversionguid 一致性**：`workflowProcessVersion.processversionguid` 必须与所有 activity / transition / workflowConfig / workflowPvMaterial / workflowPvMisTableSet 的 `processversionguid` 完全相等
+- **processguid 一致性**：`workflowProcessVersion.processguid` == `workflowProcess.processguid`
+- **transition 引用闭合**：`fromactivityguid` 与 `toactivityguid` 必须能在 `activity` 数组中找到对应 `activityguid`
+- **退回按钮 ↔ workflowConfig 闭环**：每个 `operationtype=30` 的按钮必须有 1 条 `workflowConfig`，且 `sourceguid` 等于该按钮的 `operationguid`
+- **材料 ↔ 表映射 1:1**：`workflowPvMaterial.materialguid` 必须在 `workflowPvMisTableSet.materialguid` 中找到
+- **operation ↔ activity 反向归属**：每个 `workflowActivityOperation.activityguid` 必须等于其所属 activity 的 `activityguid`
+- **vmlid 唯一**：所有 activity 的 vmlid 不能重复（开始固定 `-1`、结束固定 `1`、浏览固定 `-2`、申请固定 `2`、审批 ≥3 递增）；transition 的 vmlid 同样唯一
+
+### 4. 设计红线、节点拆分关联强规则
+
+**这一条是流程引擎能否正确加载的硬门禁，违反必然失败**：
+
+- ⛔ **节点拆分红线**：开始活动（`activitytype=10`，纯启动）与申请活动（`activitytype=30`，`activityname=申请`）**必须分拆为两个独立的 activity**，禁止合并。开始节点**不能**绑定 `handleurl`、不能填表单。
+- ⛔ **节点完整性红线**：5 类节点必须齐全 —— 开始(10) + 申请(30) + 审批(30, N 个) + 结束(20) + 浏览(100, 孤立)。漏任何一类都不行。
+- ⛔ **节点名称红线**：开始活动 `activityname` 必须是 `开始`、结束活动 `activityname` 必须是 `结束`、申请活动 `activityname` 必须是 `申请`。
+- ⛔ **空值红线**：开始 / 结束 / 浏览节点的 `handleurl`（浏览除外）/ `multitransactormode` / `timelimitenable` / `earlywarning_enable` / `isallowaddattachfile` / `isPassWhenNoTransactor` 必须为 `null`。
+- ⛔ **流转顺序红线（重点）**：transition 必须形成 **开始 → 申请 → 审批₁ → ... → 审批ₙ → 结束** 的链路，**不能跳过申请节点**（如开始直接接审批）。浏览节点不参与流转（孤立）。
+- ⛔ **退回闭环红线**：每个退回按钮必须配 1 条 `workflowConfig`（`belongto=22, configname=backTargetScope, sourceguid=按钮 operationguid`）。
+
+### 5. 必须通过引擎运行校验
+
+每次生成、修改工作流 yml 后，**必须**执行：
+
+```bash
+python scripts/validate_yml.py <metadata 路径>/workflow/<流程名>.workflow.yml
+```
+
+**通过条件：错误数 = 0**。出现任何 error 必须修复后重新校验，警告（warn）也建议处理。如果作为整应用一部分生成，还需要跑 `python scripts/validate_yml.py --check-refs <metadata>` 确认跨引用关系闭合。
+
+---
+
+## 文件位置与命名
+
+```
+<metadata>/workflow/<流程名>.workflow.yml
+```
+
+推荐中文命名（如 `采购立项审核流程.workflow.yml`、`费用报销审核流程.workflow.yml`）。
+
+## ⛔ 设计红线（强校验，违反会导致流程发布失败或运行异常）
+
+1. **节点拆分红线**：开始活动（`activitytype=10`，纯启动，不能填表单）与申请活动（`activitytype=30`，填报提交）**必须分拆为两个独立的 activity**，禁止合并。
+2. **节点完整性**：流程必须固定包含 **5 类节点**：
+   - 1 个开始活动（`activitytype=10`）
+   - 1 个申请活动（`activitytype=30`，`activityname=申请`）
+   - N 个审批活动（`activitytype=30`，`activityname` 自定义）
+   - 1 个结束活动（`activitytype=20`）
+   - 1 个浏览活动（`activitytype=100`，孤立节点，置于流程上方）
+3. **节点角色唯一**：一个 activity 只能是单一类型，不能同时具备"开始 + 申请"能力。
+4. **节点名称固定**：开始活动名称固定为 `开始`、结束活动名称固定为 `结束`，不要改名。
+5. **空值规则**：开始/结束/浏览节点的以下字段必须为空（`null`）：
+   - `handleurl`、`mobilehandleurl`（浏览节点除外，浏览节点允许填）
+   - `multitransactormode`、`earlywarning_enable`
+   - `isallowaddattachfile`、`timelimitenable`、`isPassWhenNoTransactor`
+6. **流转闭环**：transition 必须为 `开始(10) → 申请(30) → ... → 结束(20)`，不能跳过申请节点直接连接审批节点。
+7. **GUID 一致性**：所有子节点的 `processversionguid` 必须**完全一致**；`workflowProcessVersion.processguid` 与 `workflowProcess.processguid` 必须相等。
+8. **退回闭环**：每个退回按钮（`operationtype=30`）必须在 `workflowConfig` 中有 1 条对应配置（`belongto=22, configname=backTargetScope, sourceguid=该按钮 operationguid`）。
+
+## 顶层结构
+
+```yaml
+type: workflow                       # 全局固定标识
+
+workFlow:                            # 流程根（注意 w 小写）
+  workflowProcess:                   # 流程基本信息
+    ...
+  workflowVersion:                   # 流程版本结构
+    activity:                        # 活动数组（直接平铺，无 WorkflowActivity 包装层）
+      - activityguid: ...
+        activityname: ...
+        ...
+        workflowActivityOperation:   # 该节点的按钮（数组，子结构）
+          - operationguid: ...
+            ...
+    workflowConfig:                  # 退回按钮关联配置
+      - rowguid: ...
+        ...
+    workflowPvMaterial:              # 流程版本材料（表单）
+      - materialguid: ...
+        ...
+    workflowPvMisTableSet:           # 表单与数据库表映射
+      - mistablesetguid: ...
+        ...
+    transition:                      # 节点流转关系
+      - transitionguid: ...
+        ...
+    workflowProcessVersion:          # 流程版本详情
+      ...
+```
+
+> ⚠️ **常见错误**：旧版本写法 `WorkFlow / WorkflowProcess / WorkFlowVersion / Activity / WorkflowActivity / Transition` 都不被引擎识别，必须按上面的小写命名。
+
+> 🔎 各节点的详细字段定义请查看 `references/workflow/工作流/基础骨架/` 子文档（含外部方法与事件 `06-外部方法与事件.md`、流转条件见 `03-流转关系.md` 末尾、相关数据见 `04-表单材料与数据表.md` 末尾）。
+
+## 数据关系（必遵守）
+
+### 一对一
+- `workflowProcess` ↔ `workflowProcessVersion`：1 个流程对应 1 个启用版本
+- `workflowPvMaterial` ↔ `workflowPvMisTableSet`：1 个表单对应 1 个数据表映射
+- `workflowActivity` ↔ `workflowActivityMaterial`：1 个活动对应 1 个表单权限
+
+### 一对多
+- `workflowProcessVersion` → `activity`：1 个版本对应 5+ 个活动（开始 + 申请 + N 审批 + 结束 + 浏览）
+- 每个普通节点 → `workflowActivityOperation`：1-2 个按钮
+- `workflowProcessVersion` → `transition`：1 个版本对应 N 条流转（活动数 -2，浏览节点不参与）
+- 1 个退回按钮 → `workflowConfig`：1 条配置
+- `workflowProcessVersion` → `method`：1 个版本对应 N 个外部方法（≥0）
+- `method` → `workflowMethodParameter`：1 个方法对应 N 个参数（≥0）
+- `workflowProcessVersion` → `workflowEvent`：1 个版本对应 N 个事件（≥0）
+- `workflowProcessVersion` → `workflowContext`：1 个版本对应 N 个相关数据（≥0）
+- `workflowProcessVersion` → `workflowPvMaterial`：1 个版本对应 N 个材料（≥1）
+- `workflowActivityMaterial` → `workflowActivityFieldAccess`：1 个材料对应 ≥0 条字段权限
+
+### 唯一标识关联
+- 版本内所有子节点 `processversionguid` **必须完全一致**
+- 流转 `fromactivityguid / toactivityguid` 必须匹配活动的 `activityguid`
+- 按钮关联配置 `sourceguid` 必须匹配退回按钮的 `operationguid`
+- 事件 `eventMethodGuid` 必须匹配外部方法的 `methodGuid`
+- 流转条件 `transitionGuid` 必须匹配所属 transition 的 `transitionguid`
+- 相关数据 `fromMaterialGuid` 必须匹配 `workflowPvMaterial.materialguid`
+
+## `[#=xxx#]` 占位符
+
+工作流系统的特殊语法，用于运行时取值：
+
+| 占位符 | 含义 |
+|--------|------|
+| `[#=FirstMaterialUrl#]` | 第一个材料的 URL |
+| `[#=申请人#]` | 流程发起人姓名 |
+| `[#=PreviousStepActivity#]` | 上一步活动 |
+| `[#=AllBeforeActivity#]` | 所有已流转活动（退回按钮的 targetactivity 通常用这个） |
+| `[#=ExecutionContext#]` | 执行上下文 |
+
+## 修改已有工作流
+
+| 场景 | 操作 |
+|------|------|
+| 改流程名 | 改 `workflowProcess.processname` 和 `workflowProcessVersion.processversionname` |
+| 加审批节点 | 在 `activity` 数组追加（vmlid 递增）+ 调整 `transition`（注意 vmlid 不重复）+ 加退回按钮则同时新增 `workflowConfig` |
+| 删审批节点 | 从 `activity` 移除 + 删对应 `transition` + 删该节点退回按钮的 `workflowConfig` |
+| 改节点处理人 | 改 `multitransactormode` + 配合 `targetActivityTransactorSource` |
+| 改按钮 | 改对应 `workflowActivityOperation`；若变更退回按钮 GUID，记得同步 `workflowConfig.sourceguid` |
+| 改流程方向 | 改 `workflowProcessVersion.direction`（`'0'`水平 / `'90'`垂直） |
+
+## 校验规则与修复指引（validate_yml.py 实际执行）
+
+| 校验项 | 等级 | 修复方式 |
+|--------|------|---------|
+| `type: workflow` | error | 顶部第一行加 `type: workflow` |
+| 顶层用 `WorkFlow:`（驼峰） | warn（强制改） | 改为 `workFlow:`（小写 w） |
+| activity 数组项带 `WorkflowActivity:` 包装 | warn（强制改） | 平铺：`- activityguid: ...` 直接当数组项字段 |
+| 必含开始(10) + 申请(30, name="申请") + 审批(30) + 结束(20) + 浏览(100) | error | 漏哪个补哪个；浏览节点 vmlid=-2 孤立 |
+| 开始节点名称必须是"开始"、结束节点必须是"结束" | error | 改 `activityname` |
+| 开始节点直接当申请节点用（绑 handleurl/表单） | error | 拆成 2 个独立 activity |
+| 开始/结束节点的 handleurl/multitransactormode/isallowaddattachfile/... 不为空 | error | 这些字段写 `null` |
+| 浏览节点的 multitransactormode/isallowaddattachfile 不为空 | warn | 写 `null` |
+| 不同节点的 `processversionguid` 不一致 | error | 统一为同一个 UUID |
+| `workflowProcessVersion.processguid` ≠ `workflowProcess.processguid` | error | 改成相同值 |
+| 退回按钮(operationtype=30) 没对应 `workflowConfig` | error | 每个退回按钮配 1 条 `workflowConfig`（`belongto=22, configname=backTargetScope, sourceguid=按钮 operationguid`） |
+| 退回按钮 `multiTransctorMode` 不在 `OR/AND/OrAndRead` 集合 | error | 改为合法枚举值 |
+| transition 用旧驼峰 `isTargetTransactorEditable` / `isShowAsOperationButton` | warn（强制改） | 改下划线 `is_targettransactor_editable` / `is_showasoperationbutton` |
+| activity 的 vmlid 重复 | error | 开始 -1、结束 1、浏览 -2、申请 2、审批 ≥3 递增 |
+| transition 的 from/to activityguid 找不到对应 activity | error | 检查 GUID 拼写或活动是否漏建 |
+| 没有"开始 → 申请"的 transition | error | 补一条 `fromactivityguid=开始, toactivityguid=申请` 的变迁 |
+| transition.vmlid 重复 / `<2` | error/warn | 从 2 开始递增不重复 |
+| `workflowPvMaterial` 与 `workflowPvMisTableSet` 数量不匹配 | warn | 1:1 关系，1 个材料配 1 条数据表映射 |
+| `tableid` 不是整数 | error | 改为整数，如 `tableid: 2024072378`（不加引号） |
+| `multitransactormode` / `isallowaddattachfile` 写成字符串 `"10"` | warn | 改为整数 10 |
+| `iconx/icony/direction/tag` 写成数字 | warn | 用字符串 `'50'` / `'90'` / `'20'` |
+
+## 不在本 skill 范围内的事
+
+- **状态机型工作流**（含 `statemachinetag`、`statusid` 等）：复杂，建议线上设计器画
+- **加办/抄送/送阅读**等高级流程操作：手写难度大，建议线上调整
+- **流程脚本/外部方法 Java 实现**：属于高码资产，参考 `epoint-framework-dev`
+- **条件分支**（金额、角色等条件）：本 skill 默认生成无条件直连流转；简单条件分支可通过 `workflowTransitionCondition` + `workflowContext` 手工补充（参见 `references/workflow/工作流/基础骨架/03-流转关系.md` 末尾的「流转条件」小节与 `references/workflow/工作流/基础骨架/04-表单材料与数据表.md` 末尾的「相关数据」小节），复杂条件建议线上设计器
+
+## 快速生成脚本
+
+```bash
+# 最小骨架（开始 + 申请 + 1 个审批 + 结束 + 浏览）
+python scripts/add_workflow.py --metadata <metadata 路径> --name "<流程名>" --material "<表单名>"
+
+# 多审批节点 + 关联表单数据表（完整入参）
+python scripts/add_workflow.py \
+  --metadata <metadata 路径> \
+  --name "费用报销审核流程" \
+  --approvers "部门审核,主管审核,财务审核" \
+  --material "费用报销申请单" \
+  --form-id 159 --table-id 2024072378 --sql-tablename formtable20260112164507245
+```
+
+完整参数见 `python scripts/add_workflow.py --help` 或 `references/workflow/工作流/生成与校验/06-脚本使用指南.md`。生成后必须执行：
+
+```bash
+python scripts/validate_yml.py <metadata 路径>/workflow/<流程名>.workflow.yml
+```
+
+错误数 = 0 才算交付。
+
+---
+
+## 子目录导航表
+
+以下子目录按**职责维度**组织工作流的详细文档：
+
+| 子目录 | 用途（职责维度） | 入口文档 |
+|--------|-----------------|----------|
+| `基础骨架/` | 工作流核心字段定义（流程节点/活动按钮/流转关系/表单材料与数据表/流程版本/外部方法与事件） | 各编号文档（01~06） |
+| `生成与校验/` | 工作流生成脚本使用指南与校验规则 | 01-生成脚本使用指南.md |
+| `场景示例/` | 工作流场景示例 | 01-简单审批流.md |

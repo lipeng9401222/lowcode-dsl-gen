@@ -1,0 +1,1671 @@
+#!/usr/bin/env python3
+"""validate_yml.py — 静态校验单个 yml 文件 或 整个 metadata 目录.
+
+支持的校验类型：
+- appinfo.lowcode.yml  → 必填字段、apptag 与目录一致
+- appref.lowcode.yml   → 数组结构、engineguid 枚举
+- codeitem yml         → type=codeitem、items 结构
+- mis yml              → type=mis、字段必填属性、type 枚举
+- module yml           → type=module、parentGuid 闭合
+- event yml            → type=event、节点 ID 唯一、edges 引用
+- workflow yml         → type=workflow、活动/变迁完整性
+- pagedesigne yml/json → kind=page、schemaVersion 正确
+
+用法：
+    python validate_yml.py <文件或目录路径>
+    python validate_yml.py --strict <文件或目录路径>     # 严格模式：警告也当错误
+    python validate_yml.py --check-refs <metadata目录>   # 跨文件引用校验
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+import uuid
+from pathlib import Path
+from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _common import (  # noqa: E402
+    APPTAG_PATTERN,
+    FIELD_NAME_PATTERN,
+    MIS_NAME_PATTERN,
+    print_err,
+    print_info,
+    print_ok,
+    print_warn,
+    yaml_load,
+)
+
+
+VALID_ENGINEGUIDS = {"codeitem", "mis", "module", "event", "workflow", "pagedesigne", "api"}
+VALID_MIS_TYPES = {"nvarchar", "Integer", "int", "Numeric", "DateTime", "datetime", "ntext", "Image"}
+VALID_DISPLAY_TYPES = {
+    "textbox", "combobox", "datagrid", "radiobuttonlist", "checkbox",
+    "spinner", "datepicker", "ouradiotree", "ouchecktree",
+    "userradiotree", "userchecktree", "webuploader", "webeditor",
+    "textarea", "dropdownradiotree", "dropdownchecktree",
+    "fckeditor", "checkboxlist",
+}
+
+
+class ValidationResult:
+    def __init__(self):
+        self.errors: list[tuple[str, str]] = []  # (path, message)
+        self.warnings: list[tuple[str, str]] = []
+        self.passed: list[str] = []
+
+    def err(self, path: str, msg: str):
+        self.errors.append((path, msg))
+
+    def warn(self, path: str, msg: str):
+        self.warnings.append((path, msg))
+
+    def ok(self, path: str):
+        self.passed.append(path)
+
+    def report(self, strict: bool = False) -> int:
+        error_paths = {p for p, _ in self.errors}
+        passed = [p for p in self.passed if p not in error_paths]
+        for p, m in self.errors:
+            print(f"❌ {p}: {m}", file=sys.stderr)
+        for p, m in self.warnings:
+            print(f"⚠️  {p}: {m}", file=sys.stderr)
+        for p in passed:
+            print(f"✅ {p}")
+        print()
+        print(f"通过: {len(passed)}  警告: {len(self.warnings)}  错误: {len(self.errors)}")
+        if self.errors:
+            return 1
+        if strict and self.warnings:
+            return 2
+        return 0
+
+
+def is_valid_uuid(s: str) -> bool:
+    """检查是否合法 UUIDv4 或 V1-XXX-XXX-XXX-XXX 类语义化."""
+    if not isinstance(s, str):
+        return False
+    try:
+        uuid.UUID(s)
+        return True
+    except ValueError:
+        return False
+
+
+def detect_yml_type(path: Path, data: Optional[dict] = None) -> str:
+    """根据文件名 + 内容识别 yml 类型."""
+    name = path.name
+    if name == "appinfo.lowcode.yml":
+        return "appinfo"
+    if name == "appref.lowcode.yml":
+        return "appref"
+    if data is None:
+        return "unknown"
+
+    # 看顶层 type 字段
+    t = data.get("type") if isinstance(data, dict) else None
+    # codeitem 类标准值是 'codeitem'；旧版 'code' 也当 codeitem 识别，后续校验会报错提示修复
+    if t in ("codeitem", "code"):
+        return "codeitem"
+    if t == "mis":
+        return "mis"
+    if t == "module":
+        return "module"
+    if t == "event":
+        return "event"
+    if t == "workflow":
+        return "workflow"
+
+    # 没 type，根据父目录推断
+    parent = path.parent.name
+    if parent == "codeitem":
+        return "codeitem"
+    if parent == "mis":
+        return "mis"
+    if parent == "module":
+        return "module"
+    if parent == "event":
+        return "event"
+    if parent == "workflow":
+        return "workflow"
+    if parent == "pagedesigne":
+        return "pagedesigne"
+
+    return "unknown"
+
+
+def validate_appinfo(path: Path, data: dict, result: ValidationResult):
+    p = str(path)
+    required = ["developerstag", "applicationname", "apptag"]
+    for f in required:
+        if not data.get(f):
+            result.err(p, f"必填字段缺失或为空: {f}")
+            return
+
+    apptag = data["apptag"]
+    if not APPTAG_PATTERN.match(apptag):
+        result.err(p, f"apptag '{apptag}' 不合法（应为小写字母开头 + 字母/数字）")
+
+    # apptag 与目录名一致
+    apptag_dir = path.parent.parent.name
+    if apptag != apptag_dir:
+        result.err(p, f"apptag '{apptag}' 与目录名 '{apptag_dir}' 不一致")
+
+    # developerstag 与目录树一致：找 META-INF/resources 后面的第一层目录
+    developerstag = data["developerstag"]
+    parts = path.parts
+    try:
+        idx = parts.index("META-INF")
+        # META-INF/resources/<开发商>
+        if parts[idx + 1] == "resources":
+            dev_dir = parts[idx + 2]
+            if developerstag != dev_dir:
+                result.warn(p, f"developerstag '{developerstag}' 与目录 '{dev_dir}' 不一致")
+    except (ValueError, IndexError):
+        pass
+
+    if not data.get("kitid"):
+        result.warn(p, "kitid 未设置（多套件场景下必填）")
+
+    if not any(p == path_ for path_, _ in result.errors):
+        result.ok(p)
+
+
+def validate_appref(path: Path, data, result: ValidationResult):
+    p = str(path)
+    if data is None:
+        # 空文件也允许
+        result.ok(p)
+        return
+    if not isinstance(data, list):
+        result.err(p, f"顶层应为数组，实际是 {type(data).__name__}")
+        return
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            result.err(p, f"第 {i + 1} 项不是对象")
+            continue
+        eg = item.get("engineguid")
+        if not eg:
+            result.err(p, f"第 {i + 1} 项缺少 engineguid")
+        elif eg not in VALID_ENGINEGUIDS:
+            result.err(p, f"第 {i + 1} 项 engineguid '{eg}' 不在合法枚举: {sorted(VALID_ENGINEGUIDS)}")
+        names = item.get("name")
+        if not names:
+            result.err(p, f"第 {i + 1} 项缺少 name")
+        elif not isinstance(names, list):
+            result.err(p, f"第 {i + 1} 项 name 必须是数组")
+    if not any(p == path_ for path_, _ in result.errors):
+        result.ok(p)
+
+
+def validate_codeitem(path: Path, data: dict, result: ValidationResult):
+    p = str(path)
+    t = data.get("type")
+    if t == "code":
+        result.err(p, "type 是旧版 'code'，现在统一要求 'codeitem'，请将第一行改为 `type: codeitem`")
+        return
+    if t != "codeitem":
+        result.err(p, f"type 应为 'codeitem'，实际 '{t}'")
+        return
+    if not data.get("name"):
+        result.err(p, "缺少 name")
+    items = data.get("items")
+    if items is None:
+        result.warn(p, "items 字段缺失或为空")
+    elif not isinstance(items, list):
+        result.err(p, "items 必须是数组")
+    else:
+        for i, item in enumerate(items):
+            if not isinstance(item, dict):
+                continue
+            if not item.get("codetext"):
+                result.err(p, f"第 {i + 1} 项 codetext 缺失")
+            if "codevalue" not in item:
+                result.err(p, f"第 {i + 1} 项 codevalue 缺失")
+            elif not isinstance(item["codevalue"], str):
+                result.warn(
+                    p,
+                    f"第 {i + 1} 项 codevalue 应为字符串（加引号），实际 {type(item['codevalue']).__name__}",
+                )
+    if not any(p == path_ for path_, _ in result.errors):
+        result.ok(p)
+
+
+def validate_mis(path: Path, data: dict, result: ValidationResult):
+    p = str(path)
+    if data.get("type") != "mis":
+        result.err(p, f"type 应为 'mis'，实际 '{data.get('type')}'")
+        return
+    name = data.get("name")
+    if not name:
+        result.err(p, "缺少 name")
+    elif not MIS_NAME_PATTERN.match(str(name)):
+        result.err(p, f"name '{name}' 不合法（MIS 表名/name 必须小写英文数字，不能包含下划线）")
+    table_name = data.get("tableName")
+    if not table_name:
+        result.err(p, "缺少 tableName")
+    elif not MIS_NAME_PATTERN.match(str(table_name)):
+        result.err(p, f"tableName '{table_name}' 不合法（必须小写英文数字，不能包含下划线）")
+    if name and table_name and name != table_name:
+        result.err(p, f"name '{name}' 与 tableName '{table_name}' 必须一致")
+    fields = data.get("fields") or []
+    if not fields:
+        result.warn(p, "fields 为空")
+    else:
+        names_seen = set()
+        for i, f in enumerate(fields):
+            if not isinstance(f, dict):
+                continue
+            fname = f.get("name")
+            if not fname:
+                result.err(p, f"字段 {i + 1} 缺少 name")
+                continue
+            if not FIELD_NAME_PATTERN.match(str(fname)):
+                result.err(p, f"字段名 '{fname}' 非法（应为小写英文数字，可包含下划线）")
+            if fname in names_seen:
+                result.err(p, f"字段名重复: {fname}")
+            names_seen.add(fname)
+            ftype = f.get("type")
+            if not ftype:
+                result.err(p, f"字段 {fname} 缺少 type")
+            elif ftype not in VALID_MIS_TYPES:
+                result.warn(
+                    p, f"字段 {fname} type '{ftype}' 不在常用枚举: {sorted(VALID_MIS_TYPES)}",
+                )
+            if not f.get("description"):
+                result.warn(p, f"字段 {fname} 缺少 description")
+            if "length" not in f:
+                result.warn(p, f"字段 {fname} 缺少 length")
+            disp = f.get("fielddisplaytype")
+            if disp and disp not in VALID_DISPLAY_TYPES:
+                result.warn(
+                    p, f"字段 {fname} fielddisplaytype '{disp}' 不在合法枚举",
+                )
+    # tableName 与文件名一致性
+    fname_no_ext = re.sub(r"\.(mis\.)?ya?ml$", "", path.name)
+    if not MIS_NAME_PATTERN.match(fname_no_ext):
+        result.err(p, f"文件名前缀 '{fname_no_ext}' 不合法（MIS 英文文件名必须小写英文数字，不能包含下划线）")
+    if table_name and fname_no_ext != table_name:
+        result.warn(p, f"tableName '{table_name}' 与文件名 '{fname_no_ext}' 不一致")
+
+    if not any(p == path_ for path_, _ in result.errors):
+        result.ok(p)
+
+
+def validate_module(path: Path, data: dict, result: ValidationResult):
+    p = str(path)
+    if data.get("type") != "module":
+        result.err(p, f"type 应为 'module'，实际 '{data.get('type')}'")
+        return
+    if not data.get("name"):
+        result.err(p, "缺少 name")
+    if not data.get("guid"):
+        result.err(p, "缺少 guid")
+    elif not is_valid_uuid(data["guid"]):
+        result.warn(p, f"guid '{data['guid']}' 不是合法 UUID")
+    code = data.get("code")
+    if not code:
+        result.warn(p, "缺少 code")
+    elif not isinstance(code, str):
+        result.warn(p, f"code 应为字符串，实际 {type(code).__name__}")
+
+    # 子模块 parentGuid 校验
+    items = data.get("items") or []
+    root_guid = data.get("guid")
+    for i, sub in enumerate(items):
+        if not isinstance(sub, dict):
+            continue
+        if sub.get("parentGuid") != root_guid:
+            result.warn(p, f"子模块 {i + 1} parentGuid 不指向根模块 guid")
+
+    if not any(p == path_ for path_, _ in result.errors):
+        result.ok(p)
+
+
+def validate_event(path: Path, data: dict, result: ValidationResult):
+    p = str(path)
+    if data.get("type") != "event":
+        # 老示例可能省略 type，给警告
+        result.warn(p, f"type 缺失或不是 'event'（实际: {data.get('type')}）")
+
+    app = data.get("app") or {}
+    if app.get("mode") != "actflow":
+        result.warn(p, f"app.mode 应为 'actflow'（实际: {app.get('mode')}）")
+    if not app.get("name"):
+        result.err(p, "app.name 缺失")
+    if not app.get("sign") and not app.get("code"):
+        result.warn(p, "app.sign 和 app.code 都缺失，建议至少填一个作为接口标识")
+    if app.get("id") and app.get("rowguid") and app["id"] != app["rowguid"]:
+        result.warn(p, "app.id 与 app.rowguid 应相等")
+
+    workflow = data.get("workflow") or {}
+    graph = workflow.get("graph") or {}
+    nodes = graph.get("nodes") or []
+    edges = graph.get("edges") or []
+
+    # 节点 ID 唯一性
+    node_ids = [n.get("id") for n in nodes if isinstance(n, dict)]
+    dup = [x for x in set(node_ids) if node_ids.count(x) > 1]
+    if dup:
+        result.err(p, f"节点 ID 重复: {dup}")
+
+    # 至少一个 start 节点 + 一个 end 节点
+    has_start = any(
+        (n.get("data") or {}).get("type") == "start"
+        for n in nodes if isinstance(n, dict)
+    )
+    has_end = any(
+        (n.get("data") or {}).get("type") in ("end", "end-vue")
+        for n in nodes if isinstance(n, dict)
+    )
+    if not has_start:
+        result.err(p, "缺少 start 节点")
+    if not has_end:
+        result.err(p, "缺少 end / end-vue 节点")
+
+    # edges 引用闭合
+    ids_set = set(node_ids)
+    for e in edges:
+        if not isinstance(e, dict):
+            continue
+        if e.get("source") not in ids_set:
+            result.err(p, f"edge.source '{e.get('source')}' 在 nodes 中不存在")
+        if e.get("target") not in ids_set:
+            result.err(p, f"edge.target '{e.get('target')}' 在 nodes 中不存在")
+
+    if not any(p == path_ for path_, _ in result.errors):
+        result.ok(p)
+
+
+def validate_workflow(path: Path, data: dict, result: ValidationResult):
+    """工作流 yml 校验.
+
+    红线（强校验）:
+        1. 必含 5 类节点: 开始(10) + 申请(30) + N 个审批(30) + 结束(20) + 浏览(100)
+        2. 开始节点(10) 与 申请节点(30) 必须分拆为两个独立 activity
+        3. 开始节点名称固定 '开始'；结束节点名称固定 '结束'
+        4. 开始/结束/浏览节点的 handleurl/multitransactormode/timelimitenable/
+           earlywarning_enable/isallowaddattachfile/isPassWhenNoTransactor 应为空
+           （开始/结束节点的 handleurl 必须为空；浏览节点的这些字段也应为空）
+        5. processversionguid 在所有子节点中必须一致
+        6. 退回按钮(operationtype=30)必须有对应 workflowConfig(belongto=22, configname=backTargetScope)
+        7. activity/transition 的 vmlid 唯一；transition.from/to 必须能在 activity 中找到
+    """
+    p = str(path)
+    if data.get("type") != "workflow":
+        result.err(p, f"type 应为 'workflow'，实际 '{data.get('type')}'")
+        return
+
+    # 兼容大小写：优先识别规范的小写键，未命中再降级查驼峰键并给警告
+    wf = data.get("workFlow")
+    if wf is None and "WorkFlow" in data:
+        result.warn(p, "顶层应为 workFlow（小写 w 开头），不是 WorkFlow；按规范改正")
+        wf = data.get("WorkFlow")
+    wf = wf or {}
+
+    process = wf.get("workflowProcess")
+    if process is None and "WorkflowProcess" in wf:
+        result.warn(p, "应为 workflowProcess（小写 w 开头），不是 WorkflowProcess")
+        process = wf.get("WorkflowProcess")
+    process = process or {}
+
+    process_guid = process.get("processguid") or process.get("processGuid")
+    if not process_guid:
+        result.err(p, "workflowProcess.processguid 缺失")
+    if not (process.get("processname") or process.get("processName")):
+        result.err(p, "workflowProcess.processname 缺失")
+
+    version = wf.get("workflowVersion")
+    if version is None and "WorkFlowVersion" in wf:
+        result.warn(p, "应为 workflowVersion（小写 w 开头），不是 WorkFlowVersion")
+        version = wf.get("WorkFlowVersion")
+    version = version or {}
+
+    activities = version.get("activity")
+    if activities is None and "Activity" in version:
+        result.warn(p, "应为 activity（小写），不是 Activity")
+        activities = version.get("Activity")
+    activities = activities or []
+
+    transitions = version.get("transition")
+    if transitions is None and "Transition" in version:
+        result.warn(p, "应为 transition（小写），不是 Transition")
+        transitions = version.get("Transition")
+    transitions = transitions or []
+
+    workflow_config = version.get("workflowConfig") or version.get("WorkflowConfig") or []
+    pv_material = (
+        version.get("workflowPvMaterial")
+        or version.get("WorkflowPvMaterial")
+        or []
+    )
+    pv_mistableset = (
+        version.get("workflowPvMisTableSet")
+        or version.get("WorkflowPvMisTableSet")
+        or []
+    )
+
+    # ============================================================
+    # 收集 activity 字段，识别新旧两种结构（平铺 vs WorkflowActivity 包装）
+    # ============================================================
+    parsed_activities = []  # [(act_dict, owner_label_for_error)]
+    for i, raw in enumerate(activities):
+        if not isinstance(raw, dict):
+            continue
+        # 兼容旧结构：activity[i] = { WorkflowActivity: {...}, WorkflowActivityOperation: [...] }
+        if "WorkflowActivity" in raw and "activityguid" not in raw and "activityGuid" not in raw:
+            inner = raw.get("WorkflowActivity") or {}
+            ops = raw.get("WorkflowActivityOperation") or []
+            if not isinstance(inner, dict):
+                continue
+            merged = dict(inner)
+            if ops:
+                merged["workflowActivityOperation"] = ops
+            result.warn(p, f"activity[{i}] 仍带 WorkflowActivity 包装层，请按规范平铺为同级字段")
+            parsed_activities.append((merged, f"activity[{i}]"))
+        else:
+            parsed_activities.append((raw, f"activity[{i}]"))
+
+    # ============================================================
+    # 红线 1：必含 5 类节点
+    # ============================================================
+    activity_guids: set[str] = set()
+    process_version_guids: set[str] = set()
+    type_count = {10: 0, 20: 0, 30: 0, 40: 0, 90: 0, 100: 0}
+    start_acts: list[dict] = []
+    end_acts: list[dict] = []
+    apply_acts: list[dict] = []  # 申请节点：activitytype=30 + name == '申请'
+    approve_acts: list[dict] = []  # 普通审批节点：activitytype=30 + name != '申请'
+    route_acts: list[dict] = []
+    subprocess_acts: list[dict] = []
+    browse_acts: list[dict] = []
+    vmlid_seen: dict[int, str] = {}
+    custom_design_operation_count = 0
+
+    for act, owner in parsed_activities:
+        atype = act.get("activitytype", act.get("activityType"))
+        aname = act.get("activityname") or act.get("activityName") or ""
+        aguid = act.get("activityguid") or act.get("activityGuid")
+        avml = act.get("vmlid", act.get("vmlId"))
+        apvg = act.get("processversionguid") or act.get("processVersionGuid")
+
+        if aguid:
+            if aguid in activity_guids:
+                result.err(p, f"{owner} activityguid 重复: {aguid}")
+            activity_guids.add(aguid)
+        else:
+            result.err(p, f"{owner} 缺少 activityguid")
+
+        if apvg:
+            process_version_guids.add(apvg)
+
+        if atype not in (10, 20, 30, 40, 50, 90, 100, 110):
+            result.err(p, f"{owner} activitytype '{atype}' 不在合法枚举 [10/20/30/40/50/90/100/110]")
+        else:
+            if atype in type_count:
+                type_count[atype] += 1
+            if atype == 10:
+                start_acts.append(act)
+            elif atype == 20:
+                end_acts.append(act)
+            elif atype == 100:
+                browse_acts.append(act)
+            elif atype == 40:
+                route_acts.append(act)
+            elif atype == 90:
+                subprocess_acts.append(act)
+            elif atype == 30:
+                if aname == "申请":
+                    apply_acts.append(act)
+                else:
+                    approve_acts.append(act)
+
+        if avml is not None:
+            try:
+                avml_int = int(avml)
+            except (TypeError, ValueError):
+                result.err(p, f"{owner} vmlid '{avml}' 不是整数")
+            else:
+                if avml_int in vmlid_seen:
+                    result.err(p, f"{owner} vmlid={avml_int} 重复（已被 {vmlid_seen[avml_int]} 占用）")
+                else:
+                    vmlid_seen[avml_int] = owner
+
+        ops = act.get("workflowActivityOperation") or act.get("WorkflowActivityOperation") or []
+        if isinstance(ops, list):
+            for op in ops:
+                if isinstance(op, dict) and (op.get("operationtype") or op.get("operationType")) == 80:
+                    custom_design_operation_count += 1
+
+        if atype == 40:
+            jointype = act.get("jointype", act.get("joinType"))
+            if jointype == 40 and not (act.get("joinmethodguid") or act.get("joinMethodGuid")):
+                result.err(p, f"{owner} 是自定义会合路由节点（activitytype=40/jointype=40），必须配置 joinmethodguid")
+            if ops:
+                result.warn(p, f"{owner} 是路由节点（activitytype=40），通常不应配置 workflowActivityOperation 按钮")
+
+        if atype == 90:
+            if not (act.get("callsubprocessguid") or act.get("callSubProcessGuid")):
+                result.err(p, f"{owner} 是子流程节点（activitytype=90），必须配置 callsubprocessguid")
+            if act.get("subprocesssynctype", act.get("subprocessSyncType")) not in (10, 20):
+                result.err(p, f"{owner} 是子流程节点（activitytype=90），subprocesssynctype 必须为 10(异步) 或 20(同步)")
+
+    # 红线 1：5 类节点完整性
+    if type_count[10] == 0:
+        result.err(p, "缺少开始节点（activitytype: 10）")
+    if type_count[10] > 1:
+        result.err(p, f"开始节点（activitytype: 10）只能有 1 个，当前 {type_count[10]} 个")
+    if type_count[20] == 0:
+        result.err(p, "缺少结束节点（activitytype: 20）")
+    if type_count[20] > 1:
+        result.err(p, f"结束节点（activitytype: 20）只能有 1 个，当前 {type_count[20]} 个")
+    if not apply_acts:
+        result.err(p, "缺少申请节点（activitytype: 30 且 activityname: 申请），按规范申请节点必须独立于开始节点")
+    if not approve_acts:
+        result.err(p, "缺少审批节点（activitytype: 30，activityname 不为'申请'），至少 1 个")
+    if not browse_acts:
+        result.err(p, "缺少浏览节点（activitytype: 100），按规范必须有 1 个浏览节点")
+    if len(browse_acts) > 1:
+        result.warn(p, f"浏览节点（activitytype: 100）建议只有 1 个，当前 {len(browse_acts)} 个")
+
+    # 红线 3：开始/结束节点名称固定
+    for act in start_acts:
+        name = act.get("activityname") or act.get("activityName") or ""
+        if name != "开始":
+            result.err(p, f"开始节点 activityname 必须为 '开始'，实际 '{name}'")
+    for act in end_acts:
+        name = act.get("activityname") or act.get("activityName") or ""
+        if name != "结束":
+            result.err(p, f"结束节点 activityname 必须为 '结束'，实际 '{name}'")
+
+    # 红线 4：开始/结束/浏览节点的"应为空"字段
+    def _is_empty(value) -> bool:
+        return value is None or value == "" or value == "null"
+
+    must_empty_fields = {
+        "handleurl": ("handleurl", "handleUrl"),
+        "mobilehandleurl": ("mobilehandleurl", "mobileHandleURL", "mobilehandleUrl"),
+        "multitransactormode": ("multitransactormode", "multiTransactorMode"),
+        "earlywarning_enable": ("earlywarning_enable", "earlyWarning_enable", "earlyWarningEnable"),
+        "isallowaddattachfile": ("isallowaddattachfile", "isAllowAddAttachFile"),
+        "timelimitenable": ("timelimitenable", "timeLimitEnable"),
+        "isPassWhenNoTransactor": ("isPassWhenNoTransactor", "ispasswhennotransactor"),
+    }
+    for label, acts in (("开始", start_acts), ("结束", end_acts)):
+        for act in acts:
+            for canon, candidates in must_empty_fields.items():
+                actual_value = None
+                for k in candidates:
+                    if k in act:
+                        actual_value = act[k]
+                        break
+                if not _is_empty(actual_value):
+                    result.err(
+                        p,
+                        f"{label}节点 {canon} 应为空（按规范），实际 '{actual_value}'",
+                    )
+    # 浏览节点：除 handleurl/mobilehandleurl 外其余应为空
+    for act in browse_acts:
+        for canon, candidates in must_empty_fields.items():
+            if canon in ("handleurl", "mobilehandleurl"):
+                continue
+            actual_value = None
+            for k in candidates:
+                if k in act:
+                    actual_value = act[k]
+                    break
+            if not _is_empty(actual_value):
+                result.warn(
+                    p,
+                    f"浏览节点 {canon} 建议为空（按规范），实际 '{actual_value}'",
+                )
+
+    # ============================================================
+    # 红线 2：开始 != 申请（同一节点不能既是 10 又是 30）
+    # 通过 type_count 已隐含；这里再校验"开始节点不应绑定表单/handleurl"
+    # ============================================================
+    for act in start_acts:
+        ops = act.get("workflowActivityOperation") or act.get("WorkflowActivityOperation") or []
+        # 开始节点的按钮也允许，但不应有 operationtype=30 退回按钮
+        for op in ops:
+            if not isinstance(op, dict):
+                continue
+            if op.get("operationtype") == 30 or op.get("operationType") == 30:
+                result.err(p, "开始节点不应有退回按钮（operationtype=30）")
+
+    # ============================================================
+    # 红线 5：processversionguid 一致性
+    # ============================================================
+    pversion_obj = (
+        version.get("workflowProcessVersion")
+        or version.get("WorkflowProcessVersion")
+        or {}
+    )
+    process_version_guid = (
+        pversion_obj.get("processversionguid")
+        if isinstance(pversion_obj, dict)
+        else None
+    ) or (
+        pversion_obj.get("processVersionGuid")
+        if isinstance(pversion_obj, dict)
+        else None
+    )
+
+    if process_version_guid:
+        process_version_guids.add(process_version_guid)
+    if len(process_version_guids) > 1:
+        result.err(
+            p,
+            f"processversionguid 在不同节点上不一致，发现 {len(process_version_guids)} 个: "
+            f"{sorted(process_version_guids)}",
+        )
+
+    # workflowProcessVersion.processguid 与 workflowProcess.processguid 一致
+    pv_process_guid = (
+        pversion_obj.get("processguid")
+        if isinstance(pversion_obj, dict)
+        else None
+    ) or (
+        pversion_obj.get("processGuid")
+        if isinstance(pversion_obj, dict)
+        else None
+    )
+    if process_guid and pv_process_guid and pv_process_guid != process_guid:
+        result.err(
+            p,
+            f"workflowProcessVersion.processguid '{pv_process_guid}' 与 "
+            f"workflowProcess.processguid '{process_guid}' 不一致",
+        )
+
+    # ============================================================
+    # 红线 6：退回按钮 ↔ workflowConfig 闭环
+    # ============================================================
+    reject_op_guids: set[str] = set()
+    for act, owner in parsed_activities:
+        ops = act.get("workflowActivityOperation") or act.get("WorkflowActivityOperation") or []
+        for j, op in enumerate(ops):
+            if not isinstance(op, dict):
+                continue
+            otype = op.get("operationtype", op.get("operationType"))
+            oguid = op.get("operationguid") or op.get("operationGuid")
+            if otype == 30 and oguid:
+                reject_op_guids.add(oguid)
+                # 退回按钮的关键字段
+                if not (op.get("targetactivity") or op.get("targetActivity")):
+                    result.warn(
+                        p,
+                        f"{owner}.operations[{j}] 退回按钮缺少 targetactivity，"
+                        f"建议设为 [#=AllBeforeActivity#]",
+                    )
+                # multiTransctorMode 枚举校验：仅允许 OR / AND / OrAndRead
+                mtm = op.get("multiTransctorMode")
+                if mtm is not None and mtm not in ("OR", "AND", "OrAndRead"):
+                    result.err(
+                        p,
+                        f"{owner}.operations[{j}] 退回按钮 multiTransctorMode='{mtm}' "
+                        f"不在允许的集合 {{OR, AND, OrAndRead}} 中",
+                    )
+
+    config_source_guids: set[str] = set()
+    if isinstance(workflow_config, list):
+        for k, conf in enumerate(workflow_config):
+            if not isinstance(conf, dict):
+                continue
+            sguid = conf.get("sourceguid") or conf.get("sourceGuid")
+            cname = conf.get("configname") or conf.get("configName")
+            if cname == "backTargetScope" and sguid:
+                config_source_guids.add(sguid)
+
+    missing_config = reject_op_guids - config_source_guids
+    if missing_config:
+        result.err(
+            p,
+            f"以下退回按钮缺少对应 workflowConfig (belongto=22, configname=backTargetScope): "
+            f"{sorted(missing_config)}",
+        )
+    extra_config = config_source_guids - reject_op_guids
+    if extra_config:
+        result.warn(
+            p,
+            f"以下 workflowConfig.sourceguid 找不到对应的退回按钮: {sorted(extra_config)}",
+        )
+
+    process_mode_value = process.get("isnewversion")
+    if process_mode_value in (20, "20"):
+        if reject_op_guids:
+            result.err(p, "自由流程（isnewversion=20）不允许配置退回按钮；如需反向处理请配置反向通过按钮")
+        for act, owner in parsed_activities:
+            if not isinstance(act, dict):
+                continue
+            if act.get("multitransactormode") == 25:
+                pass_when_empty = (
+                    act.get("isPassWhenNoTransactor")
+                    if "isPassWhenNoTransactor" in act
+                    else act.get("is_passwhennotransactor")
+                )
+                if pass_when_empty != 10:
+                    result.warn(p, f"{owner} 是自由流转节点（multitransactormode=25），建议设置 isPassWhenNoTransactor=10")
+
+    if process_mode_value in (10, "10") and custom_design_operation_count == 0:
+        result.warn(p, "自定义流程（isnewversion=10）建议至少配置 1 个 operationtype=80 的自定义流程设计按钮")
+
+    # ============================================================
+    # 红线 7：transition 引用闭合 + vmlid 唯一
+    # ============================================================
+    transition_vmlids: dict[int, int] = {}
+    for i, t in enumerate(transitions):
+        if not isinstance(t, dict):
+            continue
+        # 兼容旧结构 WorkflowTransition 包装
+        if "WorkflowTransition" in t and "transitionguid" not in t and "transitionGuid" not in t:
+            result.warn(p, f"transition[{i}] 仍带 WorkflowTransition 包装层，请按规范平铺")
+            wt = t.get("WorkflowTransition") or {}
+        else:
+            wt = t
+
+        from_g = wt.get("fromactivityguid") or wt.get("fromActivityGuid")
+        to_g = wt.get("toactivityguid") or wt.get("toActivityGuid")
+        tname = wt.get("transitionname") or wt.get("transitionName")
+        tvml = wt.get("vmlid", wt.get("vmlId"))
+
+        if not from_g:
+            result.err(p, f"transition[{i}] 缺少 fromactivityguid")
+        elif from_g not in activity_guids:
+            result.err(
+                p, f"transition[{i}] fromactivityguid '{from_g}' 不在活动列表",
+            )
+        if not to_g:
+            result.err(p, f"transition[{i}] 缺少 toactivityguid")
+        elif to_g not in activity_guids:
+            result.err(
+                p, f"transition[{i}] toactivityguid '{to_g}' 不在活动列表",
+            )
+        if not tname:
+            result.warn(p, f"transition[{i}] 缺少 transitionname")
+        if tvml is None:
+            result.warn(p, f"transition[{i}] 缺少 vmlid（规范要求 ≥2）")
+        else:
+            try:
+                tvml_int = int(tvml)
+                if tvml_int < 2:
+                    result.warn(p, f"transition[{i}] vmlid={tvml_int} 应 ≥2")
+                if tvml_int in transition_vmlids:
+                    result.err(p, f"transition[{i}] vmlid={tvml_int} 重复")
+                else:
+                    transition_vmlids[tvml_int] = i
+            except (TypeError, ValueError):
+                result.err(p, f"transition[{i}] vmlid '{tvml}' 不是整数")
+
+        # 字段命名规范化：旧驼峰 → 下划线（现行规范已统一）
+        legacy_to_snake = {
+            "isTargetTransactorEditable": "is_targettransactor_editable",
+            "isShowAsOperationButton": "is_showasoperationbutton",
+        }
+        for legacy_key, snake_key in legacy_to_snake.items():
+            if legacy_key in wt and snake_key not in wt:
+                result.warn(
+                    p,
+                    f"transition[{i}] 字段 '{legacy_key}' 是旧驼峰命名，"
+                    f"现行规范已统一为 '{snake_key}'，请改名",
+                )
+
+    # 流转必须从开始 → 申请 → ... → 结束（不能跳过申请节点）
+    start_guids = {a.get("activityguid") or a.get("activityGuid") for a in start_acts}
+    apply_guids = {a.get("activityguid") or a.get("activityGuid") for a in apply_acts}
+    has_start_to_apply = False
+    for t in transitions:
+        if not isinstance(t, dict):
+            continue
+        wt = t.get("WorkflowTransition") if "WorkflowTransition" in t else t
+        if not isinstance(wt, dict):
+            continue
+        from_g = wt.get("fromactivityguid") or wt.get("fromActivityGuid")
+        to_g = wt.get("toactivityguid") or wt.get("toActivityGuid")
+        if from_g in start_guids and to_g in apply_guids:
+            has_start_to_apply = True
+            break
+    if start_guids and apply_guids and not has_start_to_apply:
+        result.err(
+            p,
+            "流转必须为：开始(10) → 申请(30) → ... → 结束(20)，"
+            "未发现从开始节点到申请节点的 transition",
+        )
+
+    # ============================================================
+    # workflowPvMaterial / workflowPvMisTableSet 1:1 关系
+    # ============================================================
+    if not pv_material:
+        result.warn(p, "缺少 workflowPvMaterial（流程版本材料），1 个流程通常需要 1 个表单")
+    elif isinstance(pv_material, list):
+        material_guids = {
+            (m.get("materialguid") or m.get("materialGuid"))
+            for m in pv_material
+            if isinstance(m, dict)
+        }
+        material_guids.discard(None)
+        if pv_mistableset and isinstance(pv_mistableset, list):
+            ts_material_guids = {
+                (m.get("materialguid") or m.get("materialGuid"))
+                for m in pv_mistableset
+                if isinstance(m, dict)
+            }
+            ts_material_guids.discard(None)
+            for mg in material_guids:
+                if mg not in ts_material_guids:
+                    result.warn(
+                        p,
+                        f"workflowPvMaterial.materialguid={mg} 没有对应的 workflowPvMisTableSet",
+                    )
+
+    # ============================================================
+    # 字段类型校验（防止数字/字符串混淆）
+    # ============================================================
+
+    # --- workflowPvMisTableSet.tableid 必须为整数 ---
+    if isinstance(pv_mistableset, list):
+        for i, ts in enumerate(pv_mistableset):
+            if not isinstance(ts, dict):
+                continue
+            tid = ts.get("tableid")
+            if tid is not None and tid != "":
+                if not isinstance(tid, int):
+                    result.err(
+                        p,
+                        f"workflowPvMisTableSet[{i}].tableid 必须为整数（规范要求数字类型），"
+                        f"实际值 '{tid}'（类型 {type(tid).__name__}）",
+                    )
+                elif tid < 0 or tid > 2147483647:
+                    result.warn(
+                        p,
+                        f"workflowPvMisTableSet[{i}].tableid={tid} 超出合理范围 [0, 2147483647]",
+                    )
+
+    # --- activity 字段类型校验（字符串 vs 整数） ---
+    for act, owner in parsed_activities:
+        # iconx/icony 必须是字符串
+        for coord_key in ("iconx", "icony"):
+            val = act.get(coord_key)
+            if val is not None and not isinstance(val, str):
+                result.warn(
+                    p,
+                    f"{owner}.{coord_key} 应为字符串（如 '-159'），"
+                    f"实际类型 {type(val).__name__}，可能导致设计器渲染异常",
+                )
+        # multitransactormode / isallowaddattachfile / timelimitenable / earlywarning_enable 非 null 时必须是整数
+        for int_key in ("multitransactormode", "isallowaddattachfile", "timelimitenable",
+                         "earlywarning_enable", "isPassWhenNoTransactor"):
+            val = act.get(int_key)
+            if val is not None and isinstance(val, str) and val not in ("", "null"):
+                result.warn(
+                    p,
+                    f"{owner}.{int_key} 应为整数（如 10），"
+                    f"实际是字符串 '{val}'，可能导致解析异常",
+                )
+        # operationvisiablecase / backtargetscope / nopasshandlevalue 必须是字符串
+        for str_key in ("nopasshandlevalue",):
+            val = act.get(str_key)
+            if val is not None and isinstance(val, int):
+                result.warn(
+                    p,
+                    f"{owner}.{str_key} 应为字符串（如 '10'），"
+                    f"实际是整数 {val}",
+                )
+        # 按钮字段类型校验
+        ops = act.get("workflowActivityOperation") or act.get("WorkflowActivityOperation") or []
+        for j, op in enumerate(ops):
+            if not isinstance(op, dict):
+                continue
+            for str_key_op in ("operationvisiablecase", "backtargetscope"):
+                val = op.get(str_key_op)
+                if val is not None and isinstance(val, int):
+                    result.warn(
+                        p,
+                        f"{owner}.operations[{j}].{str_key_op} 应为字符串（如 '10'），"
+                        f"实际是整数 {val}",
+                    )
+
+    # --- workflowProcess 字段类型校验 ---
+    tag_val = process.get("tag")
+    if tag_val is not None and isinstance(tag_val, int):
+        result.warn(p, f"workflowProcess.tag 应为字符串（如 '20'），实际是整数 {tag_val}")
+
+    # --- workflowProcessVersion 字段类型和值域校验 ---
+    if isinstance(pversion_obj, dict):
+        dir_val = pversion_obj.get("direction")
+        if dir_val is not None and isinstance(dir_val, int):
+            result.warn(p, f"workflowProcessVersion.direction 应为字符串（如 '90'），实际是整数 {dir_val}")
+
+        # 工作流扩展字段值域校验
+        revoke_opt = pversion_obj.get("revokeOption")
+        if revoke_opt is not None and revoke_opt not in (10, 20, 30, 40):
+            result.warn(p, f"workflowProcessVersion.revokeOption={revoke_opt} 不在合法值域 {{10,20,30,40}}")
+        no_part = pversion_obj.get("noParticipatorOption")
+        if no_part is not None and no_part not in (10, 20, 30):
+            result.warn(p, f"workflowProcessVersion.noParticipatorOption={no_part} 不在合法值域 {{10,20,30}}")
+        show_line = pversion_obj.get("isShowLineGraph")
+        if show_line is not None and show_line not in ("Normal", "Orthogonal"):
+            result.warn(p, f"workflowProcessVersion.isShowLineGraph='{show_line}' 不在合法值域 {{Normal, Orthogonal}}")
+        show_node = pversion_obj.get("isShowNodeSimple")
+        if show_node is not None and show_node not in ("details", "simple"):
+            result.warn(p, f"workflowProcessVersion.isShowNodeSimple='{show_node}' 不在合法值域 {{details, simple}}")
+        revoke_remind = pversion_obj.get("revokeRemindOption")
+        if revoke_remind is not None and revoke_remind not in (10, 20):
+            result.warn(p, f"workflowProcessVersion.revokeRemindOption={revoke_remind} 不在合法值域 {{10,20}}")
+
+    # --- transition 字段类型校验 ---
+    for i, t in enumerate(transitions):
+        if not isinstance(t, dict):
+            continue
+        wt = t.get("WorkflowTransition") if "WorkflowTransition" in t else t
+        if not isinstance(wt, dict):
+            continue
+        for int_key_t in ("is_sendtomessagecenter", "priority", "type",
+                          "targetActivityTransactorSource", "is_targettransactor_editable",
+                          "isDefault", "is_showasoperationbutton"):
+            val = wt.get(int_key_t)
+            if val is not None and isinstance(val, str) and val not in ("", "null"):
+                result.warn(
+                    p,
+                    f"transition[{i}].{int_key_t} 应为整数，实际是字符串 '{val}'",
+                )
+
+    # ============================================================
+    # 工作流扩展节点校验：method / workflowEvent / workflowContext /
+    #                  workflowTransitionCondition
+    # ============================================================
+
+    # --- method + workflowMethodParameter 引用闭合 ---
+    methods = version.get("method") or []
+    method_guids: set[str] = set()
+    if isinstance(methods, list):
+        for i, m in enumerate(methods):
+            if not isinstance(m, dict):
+                continue
+            mg = m.get("methodGuid") or m.get("methodguid")
+            if mg:
+                method_guids.add(mg)
+            else:
+                result.warn(p, f"method[{i}] 缺少 methodGuid")
+            mpvg = m.get("processversionguid") or m.get("processVersionGuid")
+            if mpvg:
+                process_version_guids.add(mpvg)
+            # 校验子参数引用闭合
+            params = m.get("workflowMethodParameter") or []
+            if isinstance(params, list):
+                for j, param in enumerate(params):
+                    if not isinstance(param, dict):
+                        continue
+                    pmg = param.get("methodGuid") or param.get("methodguid")
+                    if pmg and mg and pmg != mg:
+                        result.err(
+                            p,
+                            f"method[{i}].workflowMethodParameter[{j}].methodGuid "
+                            f"'{pmg}' 与所属方法 '{mg}' 不一致",
+                        )
+                    ppvg = param.get("processversionguid") or param.get("processVersionGuid")
+                    if ppvg:
+                        process_version_guids.add(ppvg)
+
+    # --- workflowEvent 引用闭合 ---
+    events = version.get("workflowEvent") or []
+    if isinstance(events, list):
+        for i, evt in enumerate(events):
+            if not isinstance(evt, dict):
+                continue
+            emg = evt.get("eventMethodGuid") or evt.get("eventmethodguid")
+            rule_guid = evt.get("ruleGuid") or evt.get("ruleguid")
+            if not emg and not rule_guid:
+                result.warn(p, f"workflowEvent[{i}] 建议至少配置 eventMethodGuid 或 ruleGuid 之一")
+            if emg and method_guids and emg not in method_guids:
+                result.warn(
+                    p,
+                    f"workflowEvent[{i}].eventMethodGuid '{emg}' "
+                    f"不在已定义的 method 列表中",
+                )
+            sg = evt.get("sourceGuid") or evt.get("sourceguid")
+            bt = evt.get("belongTo") or evt.get("belongto")
+            if bt == 20 and sg and sg not in activity_guids:
+                result.warn(
+                    p,
+                    f"workflowEvent[{i}].sourceGuid '{sg}' "
+                    f"(belongTo=20 活动实例事件) 不在活动列表中",
+                )
+            epvg = evt.get("processversionguid") or evt.get("processVersionGuid")
+            if epvg:
+                process_version_guids.add(epvg)
+
+    # --- workflowContext 引用闭合 ---
+    contexts = version.get("workflowContext") or []
+    if isinstance(contexts, list):
+        material_guid_set = set()
+        if isinstance(pv_material, list):
+            for m in pv_material:
+                if isinstance(m, dict):
+                    mg_ = m.get("materialguid") or m.get("materialGuid")
+                    if mg_:
+                        material_guid_set.add(mg_)
+        for i, ctx in enumerate(contexts):
+            if not isinstance(ctx, dict):
+                continue
+            vs = ctx.get("valueSource") or ctx.get("valuesource")
+            fmg = ctx.get("fromMaterialGuid") or ctx.get("frommaterialguid")
+            if vs == 30 and fmg and material_guid_set and fmg not in material_guid_set:
+                result.warn(
+                    p,
+                    f"workflowContext[{i}].fromMaterialGuid '{fmg}' "
+                    f"不在 workflowPvMaterial 列表中",
+                )
+            cpvg = ctx.get("processversionguid") or ctx.get("processVersionGuid")
+            if cpvg:
+                process_version_guids.add(cpvg)
+
+    # --- workflowTransitionCondition 引用闭合 ---
+    transition_guid_set: set[str] = set()
+    for t in transitions:
+        if not isinstance(t, dict):
+            continue
+        wt = t.get("WorkflowTransition") if "WorkflowTransition" in t else t
+        if not isinstance(wt, dict):
+            continue
+        tg = wt.get("transitionguid") or wt.get("transitionGuid")
+        if tg:
+            transition_guid_set.add(tg)
+        # 校验 transition 内嵌的条件
+        conds = wt.get("workflowTransitionCondition") or []
+        if isinstance(conds, dict):
+            conds = [conds]  # 兼容单个对象而非数组
+        if isinstance(conds, list):
+            for j, cond in enumerate(conds):
+                if not isinstance(cond, dict):
+                    continue
+                ctg = cond.get("transitionGuid") or cond.get("transitionguid")
+                if ctg and tg and ctg != tg:
+                    result.err(
+                        p,
+                        f"transition.workflowTransitionCondition[{j}].transitionGuid "
+                        f"'{ctg}' 与所属变迁 '{tg}' 不一致",
+                    )
+                cet = cond.get("conditionExpressionType") or cond.get("conditionexpressiontype")
+                if cet == 10:
+                    for required_key in ("leftValue", "compareOperation", "rightValue", "valueType"):
+                        legacy_key = required_key[:1].lower() + required_key[1:]
+                        if cond.get(required_key) in (None, "") and cond.get(legacy_key) in (None, ""):
+                            result.warn(
+                                p,
+                                f"workflowTransitionCondition[{j}] conditionExpressionType=10 缺少 {required_key}",
+                            )
+                elif cet == 20:
+                    if not (cond.get("conditionExpression") or cond.get("conditionexpression")):
+                        result.warn(p, f"workflowTransitionCondition[{j}] conditionExpressionType=20 缺少 conditionExpression")
+                if cet == 30:
+                    cmg = cond.get("methodGuid") or cond.get("methodguid")
+                    crg = cond.get("ruleGuid") or cond.get("ruleguid")
+                    if not cmg and not crg:
+                        result.warn(
+                            p,
+                            f"workflowTransitionCondition[{j}] conditionExpressionType=30 建议配置 methodGuid 或 ruleGuid 之一",
+                        )
+                    if cmg and method_guids and cmg not in method_guids:
+                        result.warn(
+                            p,
+                            f"workflowTransitionCondition.methodGuid '{cmg}' "
+                            f"不在已定义的 method 列表中",
+                        )
+                cpvg = cond.get("processversionguid") or cond.get("processVersionGuid")
+                if cpvg:
+                    process_version_guids.add(cpvg)
+
+    # 重新校验 processversionguid 一致性（含工作流扩展节点）
+    if len(process_version_guids) > 1:
+        result.err(
+            p,
+            f"processversionguid 在不同节点上不一致（含工作流扩展节点），"
+            f"发现 {len(process_version_guids)} 个: {sorted(process_version_guids)}",
+        )
+
+    if not any(p == path_ for path_, _ in result.errors):
+        result.ok(p)
+
+
+def _action_ids_from_event(value) -> list[str] | None:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        return value
+    return None
+
+
+def _validate_page_events(
+    *,
+    path: str,
+    owner: str,
+    events,
+    actions: dict,
+    result: ValidationResult,
+) -> None:
+    if events in (None, {}):
+        return
+    if not isinstance(events, dict):
+        result.err(path, f"{owner}.events 必须是对象")
+        return
+    for ev_name, ev_val in events.items():
+        action_ids = _action_ids_from_event(ev_val)
+        if action_ids is None:
+            result.err(path, f"{owner}.events.{ev_name} 必须是 action id 字符串或字符串数组")
+            continue
+        for aid in action_ids:
+            if aid not in actions:
+                result.err(path, f"{owner}.events.{ev_name} 引用未注册的 action: {aid}")
+
+
+def _model_parts(ref) -> list[str] | None:
+    if not isinstance(ref, str) or not ref.strip():
+        return None
+    ref = ref.strip()
+    if ref.startswith("model."):
+        ref = ref[6:]
+    parts = ref.split(".")
+    if not all(parts):
+        return None
+    return parts
+
+
+def _model_ref_exists(ref, models: dict, *, allow_root: bool = True) -> bool:
+    parts = _model_parts(ref)
+    if not parts:
+        return False
+    root = parts[0]
+    if root not in models:
+        return False
+    if len(parts) == 1:
+        return allow_root
+    fields = (models.get(root) or {}).get("fields") or {}
+    return parts[1] in fields
+
+
+def _iter_page_nodes(children, parent: str = "children"):
+    for idx, item in enumerate(children or []):
+        owner = f"{parent}[{idx}]"
+        if isinstance(item, dict):
+            yield owner, item
+            nested = item.get("children")
+            if isinstance(nested, list):
+                yield from _iter_page_nodes(nested, f"{owner}.children")
+
+
+def _validate_action_cycles(path: str, graph: dict[str, set[str]], result: ValidationResult) -> None:
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def dfs(action_id: str, stack: list[str]) -> None:
+        if action_id in visiting:
+            result.err(path, f"actions.run 存在循环调用: {' -> '.join(stack + [action_id])}")
+            return
+        if action_id in visited:
+            return
+        visiting.add(action_id)
+        for next_id in graph.get(action_id, set()):
+            dfs(next_id, stack + [action_id])
+        visiting.remove(action_id)
+        visited.add(action_id)
+
+    for action_id in graph:
+        dfs(action_id, [])
+
+
+def validate_pagedesigne(path: Path, data: dict, result: ValidationResult):
+    p = str(path)
+    if not isinstance(data, dict):
+        result.err(p, f"顶层必须是对象，实际 {type(data).__name__}")
+        return
+    if data.get("kind") != "page":
+        result.err(p, f"kind 应为 'page'，实际 '{data.get('kind')}'")
+    if data.get("schemaVersion") != "core-1.0":
+        result.warn(p, f"schemaVersion 应为 'core-1.0'，实际 '{data.get('schemaVersion')}'")
+
+    models = data.get("models") or {}
+    resources = data.get("resources") or {}
+    actions = data.get("actions") or {}
+    children = data.get("children")
+    if not isinstance(models, dict):
+        result.err(p, "models 必须是对象")
+        models = {}
+    if not isinstance(resources, dict):
+        result.err(p, "resources 必须是对象")
+        resources = {}
+    if not isinstance(actions, dict):
+        result.err(p, "actions 必须是对象")
+        actions = {}
+
+    if children is None:
+        result.err(p, "缺少 children 字段")
+        children = []
+    elif not isinstance(children, list):
+        result.err(p, "children 必须是数组")
+        children = []
+
+    _validate_page_events(path=p, owner="page", events=data.get("events") or {}, actions=actions, result=result)
+
+    node_ids = []
+    for owner, item in _iter_page_nodes(children):
+        node_id = item.get("id")
+        if node_id:
+            node_ids.append(node_id)
+        else:
+            result.warn(p, f"{owner} 缺少 id，建议补稳定标识")
+
+        node_type = item.get("type")
+        if not isinstance(node_type, str) or not node_type:
+            result.err(p, f"{owner}.type 必须是非空字符串")
+
+        if "children" in item and not isinstance(item.get("children"), list):
+            result.err(p, f"{owner}.children 必须是数组")
+
+        _validate_page_events(path=p, owner=owner, events=item.get("events") or {}, actions=actions, result=result)
+
+        source = item.get("source")
+        if source:
+            if not isinstance(source, str):
+                result.err(p, f"{owner}.source 必须是 resource id 字符串")
+            elif source not in resources:
+                result.err(p, f"{owner}.source 引用不存在的 resource: {source}")
+
+        for ref_key in ("model", "textModel"):
+            model_ref = item.get(ref_key)
+            if model_ref and not _model_ref_exists(model_ref, models):
+                result.err(p, f"{owner}.{ref_key} 引用不存在的模型字段: {model_ref}")
+
+        visible = item.get("visible")
+        if visible is not None and not isinstance(visible, (bool, str)):
+            result.err(p, f"{owner}.visible 必须是布尔值或表达式字符串")
+
+        if item.get("type") == "table":
+            table_model = item.get("model")
+            if table_model and not _model_ref_exists(table_model, models, allow_root=True):
+                result.err(p, f"{owner}.model 引用不存在的集合模型: {table_model}")
+            columns = item.get("columns") or []
+            if not isinstance(columns, list):
+                result.err(p, f"{owner}.columns 必须是数组")
+            else:
+                root = (_model_parts(table_model) or [None])[0]
+                fields = (models.get(root) or {}).get("fields") or {}
+                for i, col in enumerate(columns):
+                    if not isinstance(col, dict):
+                        result.err(p, f"{owner}.columns[{i}] 必须是对象")
+                        continue
+                    field = col.get("field")
+                    if field and not isinstance(field, str):
+                        result.err(p, f"{owner}.columns[{i}].field 必须是字段名字符串")
+                    elif field and root and field not in fields:
+                        result.err(p, f"{owner}.columns[{i}].field 引用不存在的字段: {field}")
+
+    duplicate_node_ids = sorted({x for x in node_ids if node_ids.count(x) > 1})
+    if duplicate_node_ids:
+        result.err(p, f"同一页面 node id 重复: {duplicate_node_ids}")
+
+    action_run_graph: dict[str, set[str]] = {aid: set() for aid in actions}
+    for action_id, action in actions.items():
+        if not isinstance(action, dict):
+            result.err(p, f"actions.{action_id} 必须是对象")
+            continue
+        steps = action.get("steps")
+        if not isinstance(steps, list):
+            result.err(p, f"actions.{action_id}.steps 必须是数组")
+            continue
+        for i, step in enumerate(steps):
+            if not isinstance(step, dict):
+                result.err(p, f"actions.{action_id}.steps[{i}] 必须是对象")
+                continue
+            use = step.get("use")
+            if use:
+                if not isinstance(use, str) or "." not in use:
+                    result.err(p, f"actions.{action_id}.steps[{i}].use 必须是 resource.operation")
+                else:
+                    resource_id, operation_id = use.split(".", 1)
+                    resource = resources.get(resource_id)
+                    operations = (resource or {}).get("operations") or {}
+                    if resource_id not in resources:
+                        result.err(p, f"actions.{action_id}.steps[{i}].use 引用不存在的 resource: {resource_id}")
+                    elif operation_id not in operations:
+                        result.err(
+                            p,
+                            f"actions.{action_id}.steps[{i}].use 引用不存在的 operation: {use}",
+                        )
+            run = step.get("run")
+            if run:
+                run_ids = [run] if isinstance(run, str) else run if isinstance(run, list) else []
+                if not run_ids:
+                    result.err(p, f"actions.{action_id}.steps[{i}].run 必须是 action id 或 action id 数组")
+                for run_id in run_ids:
+                    if not isinstance(run_id, str):
+                        result.err(p, f"actions.{action_id}.steps[{i}].run 项必须是 action id 字符串")
+                        continue
+                    if run_id not in actions:
+                        result.err(p, f"actions.{action_id}.steps[{i}].run 引用未注册的 action: {run_id}")
+                    else:
+                        action_run_graph.setdefault(action_id, set()).add(run_id)
+            assign = step.get("assign")
+            if assign:
+                if not isinstance(assign, dict):
+                    result.err(p, f"actions.{action_id}.steps[{i}].assign 必须是对象")
+                else:
+                    for target_ref in assign:
+                        if not _model_ref_exists(target_ref, models, allow_root=True):
+                            result.err(
+                                p,
+                                f"actions.{action_id}.steps[{i}].assign 左侧不是可写模型引用: {target_ref}",
+                            )
+            validate_ref = step.get("validate")
+            if validate_ref and isinstance(validate_ref, str) and validate_ref.startswith("model."):
+                if not _model_ref_exists(validate_ref, models, allow_root=True):
+                    result.err(p, f"actions.{action_id}.steps[{i}].validate 引用不存在的模型: {validate_ref}")
+
+    _validate_action_cycles(p, action_run_graph, result)
+
+    if not any(p == path_ for path_, _ in result.errors):
+        result.ok(p)
+
+
+def validate_one(path: Path, result: ValidationResult):
+    p = str(path)
+    suffix = path.suffix.lower()
+    is_json = suffix == ".json"
+
+    # 空文件直接跳过
+    try:
+        size = path.stat().st_size
+    except OSError:
+        size = 0
+    if size == 0:
+        result.warn(p, "文件为空，跳过校验")
+        return
+
+    try:
+        if is_json:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        else:
+            data = yaml_load(path)
+    except Exception as e:
+        # 兼容低代码扩展语法（如 codeitem 嵌套子项），降级为 warn
+        result.warn(
+            p,
+            f"解析失败（可能使用了低代码扩展语法/嵌套子项写法）: {str(e).splitlines()[0]}",
+        )
+        return
+
+    yml_type = detect_yml_type(path, data)
+
+    if is_json or yml_type == "pagedesigne":
+        validate_pagedesigne(path, data or {}, result)
+        return
+
+    if yml_type == "appinfo":
+        validate_appinfo(path, data or {}, result)
+    elif yml_type == "appref":
+        validate_appref(path, data, result)
+    elif yml_type == "codeitem":
+        validate_codeitem(path, data or {}, result)
+    elif yml_type == "mis":
+        validate_mis(path, data or {}, result)
+    elif yml_type == "module":
+        validate_module(path, data or {}, result)
+    elif yml_type == "event":
+        validate_event(path, data or {}, result)
+    elif yml_type == "workflow":
+        validate_workflow(path, data or {}, result)
+    else:
+        result.warn(p, f"未识别的文件类型，跳过校验")
+
+
+def find_target_files(path: Path) -> list[Path]:
+    """从指定路径收集所有需要校验的文件（yml/yaml + 历史 pagedesigne json）."""
+    if path.is_file():
+        return [path]
+    if not path.is_dir():
+        return []
+    targets = []
+    targets.extend(path.rglob("*.yml"))
+    targets.extend(path.rglob("*.yaml"))
+    # 兼容历史 pagedesigne json；新建页面设计器文件使用 .pagedesigne.yml。
+    targets.extend(path.rglob("pagedesigne/*.json"))
+    return sorted(set(targets))
+
+
+def validate_metadata_dir_structure(metadata_dir: Path, result: ValidationResult):
+    """校验 metadata 目录整体结构（appinfo 必备等）."""
+    p = str(metadata_dir)
+    appinfo = metadata_dir / "appinfo.lowcode.yml"
+    if not appinfo.is_file():
+        result.err(p, "metadata 目录缺少 appinfo.lowcode.yml")
+
+
+def load_any(path: Path):
+    """读取 yml/json，失败返回 None."""
+    try:
+        if path.suffix.lower() == ".json":
+            return json.loads(path.read_text(encoding="utf-8"))
+        return yaml_load(path)
+    except Exception:
+        return None
+
+
+def read_apptag(metadata_dir: Path) -> str:
+    appinfo = metadata_dir / "appinfo.lowcode.yml"
+    data = load_any(appinfo) if appinfo.is_file() else {}
+    if isinstance(data, dict) and data.get("apptag"):
+        return str(data["apptag"])
+    return metadata_dir.parent.name
+
+
+def inventory_assets(metadata_dir: Path) -> dict[str, set[str]]:
+    """收集 metadata 内可被 appref 引用的资产名."""
+    inventory = {name: set() for name in VALID_ENGINEGUIDS}
+    for path in find_target_files(metadata_dir):
+        data = load_any(path)
+        yml_type = detect_yml_type(path, data)
+        stem = re.sub(r"\.(codeitem|mis|module|event|workflow|pagedesigne|api)$", "", path.stem)
+        parent = path.parent.name
+
+        if yml_type == "codeitem":
+            inventory["codeitem"].update(x for x in [stem, (data or {}).get("name")] if x)
+        elif yml_type == "mis":
+            inventory["mis"].update(x for x in [stem, (data or {}).get("name"), (data or {}).get("tableName")] if x)
+        elif yml_type == "module":
+            inventory["module"].update(x for x in [stem, (data or {}).get("name"), (data or {}).get("code")] if x)
+        elif yml_type == "event":
+            app = (data or {}).get("app") or {}
+            inventory["event"].update(
+                x for x in [stem, app.get("name"), app.get("sign"), app.get("code"), app.get("id"), app.get("rowguid")] if x
+            )
+        elif yml_type == "workflow":
+            wf = (data or {}).get("workFlow") or (data or {}).get("WorkFlow") or {}
+            process = wf.get("workflowProcess") or wf.get("WorkflowProcess") or {}
+            process_name = process.get("processname") or process.get("processName")
+            inventory["workflow"].update(x for x in [stem, process_name] if x)
+        elif yml_type == "pagedesigne" or (path.suffix.lower() == ".json" and parent == "pagedesigne"):
+            inventory["pagedesigne"].update(x for x in [stem, (data or {}).get("title"), (data or {}).get("id")] if x)
+        elif parent == "api":
+            inventory["api"].add(stem)
+    return inventory
+
+
+def find_resources_root(metadata_dir: Path) -> Path:
+    """找到 META-INF/resources 根目录；找不到则用 metadata 父目录兜底."""
+    for parent in metadata_dir.parents:
+        if parent.name == "resources" and parent.parent.name == "META-INF":
+            return parent
+    return metadata_dir.parent
+
+
+def find_metadata_by_apptag(metadata_dir: Path, apptag: str) -> Optional[Path]:
+    resources_root = find_resources_root(metadata_dir)
+    for candidate in resources_root.rglob(f"{apptag}/metadata"):
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def validate_appref_refs(metadata_dir: Path, current_inventory: dict[str, set[str]], result: ValidationResult) -> None:
+    appref = metadata_dir / "appref.lowcode.yml"
+    if not appref.is_file():
+        return
+    data = load_any(appref)
+    if not isinstance(data, list):
+        return
+    current_apptag = read_apptag(metadata_dir)
+    inventory_cache: dict[str, dict[str, set[str]]] = {current_apptag: current_inventory}
+
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            continue
+        engineguid = item.get("engineguid")
+        names = item.get("name") or []
+        if engineguid not in VALID_ENGINEGUIDS or not isinstance(names, list):
+            continue
+
+        source_app = item.get("sourceAppTag")
+        if not source_app:
+            # 未声明 sourceAppTag 表示平台公共引用，当前离线工程无法可靠校验存在性。
+            continue
+        source_metadata = metadata_dir
+        if source_app != current_apptag:
+            source_metadata = find_metadata_by_apptag(metadata_dir, source_app)
+            if not source_metadata:
+                result.err(str(appref), f"第 {i + 1} 项 sourceAppTag='{source_app}' 找不到对应 metadata")
+                continue
+        if source_app not in inventory_cache:
+            inventory_cache[source_app] = inventory_assets(source_metadata)
+        available = inventory_cache[source_app].get(engineguid, set())
+        for name in names:
+            if str(name) not in available:
+                result.err(
+                    str(appref),
+                    f"第 {i + 1} 项引用不存在: engineguid={engineguid}, name={name}, sourceAppTag={source_app}",
+                )
+
+
+def validate_mis_codeitem_refs(metadata_dir: Path, current_inventory: dict[str, set[str]], result: ValidationResult) -> None:
+    codeitems = current_inventory.get("codeitem", set())
+    for path in sorted((metadata_dir / "mis").glob("*.yml")):
+        data = load_any(path)
+        if not isinstance(data, dict):
+            continue
+        for field in data.get("fields") or []:
+            if not isinstance(field, dict):
+                continue
+            codename = field.get("datasourceCodename")
+            if codename and str(codename) not in codeitems:
+                result.err(str(path), f"字段 {field.get('name')} 引用不存在的代码项: {codename}")
+
+
+def _as_list(value) -> list:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        return [value]
+    return []
+
+
+def validate_workflow_ruleguid_refs(metadata_dir: Path, current_inventory: dict[str, set[str]], result: ValidationResult) -> None:
+    """校验 workflow 中指向动作流的 ruleGuid/ruleguid 是否能在 event 资产中找到."""
+    event_refs = {str(x) for x in current_inventory.get("event", set()) if x}
+    workflow_dir = metadata_dir / "workflow"
+    if not workflow_dir.is_dir():
+        return
+    workflow_files = sorted(set(workflow_dir.glob("*.yml")) | set(workflow_dir.glob("*.yaml")))
+    for path in workflow_files:
+        data = load_any(path)
+        if not isinstance(data, dict):
+            continue
+        wf = data.get("workFlow") or data.get("WorkFlow") or {}
+        version = wf.get("workflowVersion") or wf.get("WorkFlowVersion") or {}
+        if not isinstance(version, dict):
+            continue
+
+        for i, method in enumerate(_as_list(version.get("method"))):
+            if not isinstance(method, dict):
+                continue
+            rule_guid = method.get("ruleguid") or method.get("ruleGuid")
+            if rule_guid and str(rule_guid) not in event_refs:
+                result.err(str(path), f"method[{i}].ruleguid 引用不存在的动作流: {rule_guid}")
+
+        for i, event in enumerate(_as_list(version.get("workflowEvent"))):
+            if not isinstance(event, dict):
+                continue
+            rule_guid = event.get("ruleGuid") or event.get("ruleguid")
+            if rule_guid and str(rule_guid) not in event_refs:
+                result.err(str(path), f"workflowEvent[{i}].ruleGuid 引用不存在的动作流: {rule_guid}")
+
+        for ti, transition in enumerate(_as_list(version.get("transition"))):
+            if not isinstance(transition, dict):
+                continue
+            wt = transition.get("WorkflowTransition") if "WorkflowTransition" in transition else transition
+            if not isinstance(wt, dict):
+                continue
+            for ci, condition in enumerate(_as_list(wt.get("workflowTransitionCondition"))):
+                if not isinstance(condition, dict):
+                    continue
+                rule_guid = condition.get("ruleGuid") or condition.get("ruleguid")
+                if rule_guid and str(rule_guid) not in event_refs:
+                    result.err(
+                        str(path),
+                        f"transition[{ti}].workflowTransitionCondition[{ci}].ruleGuid 引用不存在的动作流: {rule_guid}",
+                    )
+
+
+def validate_cross_refs(metadata_dir: Path, result: ValidationResult) -> None:
+    """跨文件引用校验：appref、mis 字典引用等."""
+    p = str(metadata_dir)
+    if not metadata_dir.is_dir() or metadata_dir.name != "metadata":
+        result.err(p, "--check-refs 需要传入 metadata 目录")
+        return
+    current_inventory = inventory_assets(metadata_dir)
+    validate_appref_refs(metadata_dir, current_inventory, result)
+    validate_mis_codeitem_refs(metadata_dir, current_inventory, result)
+    validate_workflow_ruleguid_refs(metadata_dir, current_inventory, result)
+
+
+def cli():
+    parser = argparse.ArgumentParser(description="低代码 yml 静态校验")
+    parser.add_argument("target", help="要校验的文件或目录")
+    parser.add_argument(
+        "--strict", action="store_true",
+        help="严格模式：警告也作为错误返回非零退出码",
+    )
+    parser.add_argument(
+        "--check-refs", action="store_true",
+        help="跨文件引用校验（mis 字段引用 codeitem、appref 引用资产是否存在等）",
+    )
+    args = parser.parse_args()
+
+    target = Path(args.target).resolve()
+    if not target.exists():
+        print_err(f"目标不存在: {target}")
+        return 1
+
+    result = ValidationResult()
+
+    # 目录级整体结构校验
+    if target.is_dir() and target.name == "metadata":
+        validate_metadata_dir_structure(target, result)
+
+    files = find_target_files(target)
+    if not files:
+        print_warn(f"未找到任何 yml/json 文件: {target}")
+        return 0
+
+    print_info(f"扫描到 {len(files)} 个文件")
+    for f in files:
+        validate_one(f, result)
+    if args.check_refs:
+        validate_cross_refs(target, result)
+
+    return result.report(strict=args.strict)
+
+
+if __name__ == "__main__":
+    sys.exit(cli())

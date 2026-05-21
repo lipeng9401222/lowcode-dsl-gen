@@ -1,0 +1,6 @@
+.DS_Store
+dsl-gen-api/
+ycsq/
+
+# Kiro 本地工作区（spec 草稿、任务清单、配置等），不进版本库
+.kiro/

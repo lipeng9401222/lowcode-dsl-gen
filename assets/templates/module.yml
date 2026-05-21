@@ -1,0 +1,103 @@
+# 固定标识
+type: module
+
+# 模块code
+code: "{{CODE}}"
+# 模块介绍
+intro: ""
+# 模块名称
+name: "{{NAME}}"
+# 模块标识
+guid: "{{GUID}}"
+# 菜单名称
+menuName: ""
+# 模块地址
+url: ""
+# 排序号
+orderNumber: 0
+# 是否禁用 (0:不禁用 1:禁用)
+isDisable: 0
+# 是否新窗口打开 (0/1)
+isBlank: 0
+# 大图标
+bigIconAddress: ""
+# 小图标
+smallIconAddress: ""
+# 模块类型
+moduleType: ""
+# 是否增加独立单位 (0/1)
+isAddOu: 0
+# 父模块标识（根模块为空）
+parentGuid: ""
+# 是否来源于SOA (0/1)
+isFromSoa: 0
+# 是否启用 (0:停用 1:启用)
+isUse: 1
+# 国际化key
+i18nKey: ""
+# 是否保留 (0/1)
+isReserved: 0
+# 白名单
+whitelist: ""
+# 租户标识
+tenantGuid: ""
+# 模块来源
+moduleSource: ""
+# 是否切换应用 (0/1)
+isSwitchApp: 0
+# 是否首页显示
+showInHomepage: ""
+# 模块所属系统
+moduleSystem: ""
+# 新版大图标
+newBigIconAddress: ""
+# 是否缓存 (0/1)
+isKeepAlive: 0
+# 是否仅在路由中显示 (0/1)
+isOnlyInRoute: 0
+# 路由路径
+routePath: ""
+# 路由名称
+routePathName: ""
+# 是否VUE模块 (0/1，新方案推荐 1)
+isVue: 1
+# 是否开放给租户
+isOpenToTenant: ""
+# 模块描述
+description: ""
+# 应用标识
+applicationGuid: ""
+# 应用App标识
+applicationAppGuid: ""
+# 创建时间
+createTime: "{{CREATE_TIME}}"
+# 更新时间
+updateTime: "{{UPDATE_TIME}}"
+# 使用说明
+useDescription: ""
+# 引用模块标识
+referenceModuleGuid: ""
+# 重要程度
+importance: 0
+# 是否顶部菜单 (0/1)
+isTopMenu: 0
+# 是否快捷创建 (0/1)
+isQuickCreate: 0
+# 图标类型
+iconType: ""
+# 短路径
+shortPath: ""
+
+# 模块授权
+auth:
+  moduleGuid: "{{GUID}}"
+  allowTo: ""
+  allowType: ""
+  isFromOa: 0
+  isFromSoa: 0
+  rightType: ""
+  moduleRightMode: ""
+  tenantGuid: ""
+
+# 子模块（可选）
+items: []

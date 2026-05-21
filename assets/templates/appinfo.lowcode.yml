@@ -1,0 +1,13 @@
+# 开发商标识
+developerstag: {{DEVELOPERSTAG}}
+# 应用名称
+applicationname: {{APPLICATIONNAME}}
+# 应用标识(全局唯一)
+apptag: {{APPTAG}}
+# 套件标识，不填时默认当前组件套件，组件内有多个套件时必填
+kitid: {{KITID}}
+# 扩展信息
+extendappsource:
+# 扩展的原始应用
+organappsource:
+baseouguid: {{BASEOUGUID}}

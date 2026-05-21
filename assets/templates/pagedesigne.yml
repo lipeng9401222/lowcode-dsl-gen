@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "core-1.0",
+  "kind": "page",
+  "id": "{{PAGE_ID}}",
+  "title": "{{PAGE_TITLE}}",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "unit": "px",
+    "device": "desktop"
+  },
+  "theme": {
+    "background": "#FFFFFF",
+    "textColor": "#111827",
+    "fontFamily": "system"
+  },
+  "models": {},
+  "resources": {},
+  "actions": {},
+  "events": {},
+  "children": []
+}

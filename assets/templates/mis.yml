@@ -1,0 +1,44 @@
+# 固定标识
+type: mis
+# 模型名称
+name: {{TABLE_NAME}}
+# 描述
+description: {{DESCRIPTION}}
+# 表名
+tableName: {{TABLE_NAME}}
+# 字段列表
+fields:
+  - name: rowguid
+    type: nvarchar
+    description: 主键
+    length: 50
+    fielddisplaytype: textbox
+    isforeignkey: true
+    autoincrease: false
+    notnull: true
+    mustfill: true
+    uniquefield: true
+    defaultvalue: ""
+    fieldjd: 2
+    ismillisecond: false
+    precision: 0
+    frameMj: 0
+    isframeou: false
+    isframeuser: false
+    iscustom: false
+    controlwidth: 1
+    ordernumingrid: 0
+    dispfielddesc: false
+    fielddesc: ""
+    todispingrid: false
+    isquerycondition: false
+    isorderfield: false
+    orderdirection: "asc"
+    isexportexcel: false
+    gridmultirows: false
+    gridwidth: 100
+    dispInadd: false
+    datasourceCodename: ""
+
+# 关联关系（可选）
+relations: []
