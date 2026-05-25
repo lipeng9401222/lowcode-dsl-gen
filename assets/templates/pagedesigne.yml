@@ -1,4 +1,5 @@
 {
+  "pagetag": "{{PAGE_TAG}}",
   "schemaVersion": "core-1.0",
   "kind": "page",
   "id": "{{PAGE_ID}}",

@@ -15,7 +15,7 @@
   - **设计器内部 normalize/validate 逻辑实现**：属于设计器/平台职责
   - **复杂动画交互**：建议在线上设计器调整
   - **Vue SFC 页面手写**：属于高码资产，参考 `epoint-framework-dev`
-- 与 metadata 目录的对应关系：`metadata/<apptag>/pagedesigne/`
+- 与 应用根目录的对应关系：`<apptag>/pagedesigne/`
 
 ## 2. 文档导航
 
@@ -32,7 +32,7 @@
 ### 文件位置与命名
 
 ```
-<metadata>/pagedesigne/<页面名>.pagedesigne.yml
+<app-root>/pagedesigne/<页面名>.pagedesigne.yml
 ```
 
 推荐命名：
@@ -82,7 +82,7 @@
 
 #### 第四步：创建计划 + 明确批准
 
-按用户提供的信息先组装页面创建计划，列出页面类型、数据模型、主要交互和目标文件 `<metadata>/pagedesigne/<title>.pagedesigne.yml`。用户明确回复"批准创建"后，再生成 Core Schema JSON 文本并落盘校验。
+按用户提供的信息先组装页面创建计划，列出页面类型、数据模型、主要交互和目标文件 `<app-root>/pagedesigne/<title>.pagedesigne.yml`。用户明确回复"批准创建"后，再生成 Core Schema JSON 文本并落盘校验。
 
 ### 快速生成脚本
 
@@ -90,7 +90,7 @@
 
 ```bash
 python scripts/add_pagedesigne.py \
-  --metadata <metadata目录> \
+  --app-root <app-root> \
   --type list \
   --title "采购立项列表" \
   --endpoint "/api/purchaseproject" \
@@ -107,7 +107,7 @@ python scripts/add_pagedesigne.py \
 | `detail` | 详情页，生成 record model、detail action、text 展示节点 |
 | `custom` | 自定义骨架，适合先生成最小 schema 后手工补复杂结构 |
 
-脚本会写入 `<metadata>/pagedesigne/<页面名>.pagedesigne.yml` 并调用 `validate_yml.py` 自检。复杂页面仍可用模板补充，但补完后必须跑：
+脚本会写入 `<app-root>/pagedesigne/<页面名>.pagedesigne.yml` 并调用 `validate_yml.py` 自检。复杂页面仍可用模板补充，但补完后必须跑：
 
 ```bash
 python scripts/validate_yml.py <目标.pagedesigne.yml>
@@ -125,6 +125,7 @@ python scripts/validate_yml.py <目标.pagedesigne.yml>
 
 ```json
 {
+  "pagetag": "employee_form",
   "schemaVersion": "core-1.0",
   "kind": "page",
   "id": "employee-page",
@@ -154,9 +155,10 @@ python scripts/validate_yml.py <目标.pagedesigne.yml>
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
+| `pagetag` | string | ✅ | 页面运行时标识，**应用内唯一**（同一 `<apptag>/pagedesigne/` 下不能重复）。全小写英文 + 数字 + 下划线，建议形如 `<业务>_<form/list/detail>`。被 workflow 的 `handleurl` 引用：`home/vuepagedesigner/renderer/add?pagetag=<pagetag>` |
 | `schemaVersion` | string | ✅ | 固定 `"core-1.0"` |
 | `kind` | string | ✅ | 固定 `"page"` |
-| `id` | string | ❌ | 页面稳定标识（缺省由 normalize 生成） |
+| `id` | string | ❌ | 页面稳定标识（缺省由 normalize 生成；与 pagetag 解耦，id 用于设计器节点引用，pagetag 用于运行时路由） |
 | `title` | string | ✅ | 页面标题（中文） |
 | `viewport` | object | ❌ | 设计器画布配置（详见 `Schema 字段速查.md`） |
 | `theme` | object | ❌ | 页面级默认视觉变量（详见 `Schema 字段速查.md`） |
@@ -165,6 +167,8 @@ python scripts/validate_yml.py <目标.pagedesigne.yml>
 | `actions` | object | ❌ | 行为注册表（接口调用、赋值、校验等） |
 | `events` | object | ❌ | 页面级事件 → action 引用 |
 | `children` | array | ✅ | 唯一视图节点树（详见 `视图模型速查.md`） |
+
+> ⚠️ **pagetag 必问项**：生成页面前**必须**确认 pagetag。脚本 `add_pagedesigne.py --pagetag` 必填；遗漏会报错退出。
 
 ## resources（外部资源）
 

@@ -2,6 +2,11 @@
 # 字段全小写命名；activity/transition 数组直接平铺，不再多一层 WorkflowActivity 包装
 # 必含 5 类节点：开始(10) + 申请(30) + 审批(30) + 结束(20) + 浏览(100)
 # 红线：开始节点不能填表单；申请节点必须独立；开始/结束/浏览节点的 handleurl/multitransactormode/timelimit*/earlywarning_*/isallowaddattachfile 等字段为空(null)
+#
+# handleurl 占位说明：
+# - {{PAGE_TAG_FORM}}    申请/审批节点（activitytype=30）使用的"表单页"pagetag，从 <apptag>/pagedesigne/*.pagedesigne.yml 顶层 pagetag 字段取
+# - {{PAGE_TAG_DETAIL}}  浏览节点（activitytype=100）使用的"详情页"pagetag；如果只有表单页则复用 {{PAGE_TAG_FORM}}
+# - 自定义流程的"流程设计"按钮 operationpageurl 不受此规则影响，仍走原平台地址
 
 # 全局固定标识
 type: workflow
@@ -14,7 +19,7 @@ workFlow:
     processguid: {{PROCESS_GUID}}
     processname: "{{PROCESS_NAME}}"
     note: "{{PROCESS_NAME}}"
-    isvue: 0
+    isvue: 1
     designversion: senior
     ordernum: 50
     status: 10
@@ -51,9 +56,9 @@ workFlow:
         earlywarning_enable: null
         earlywarning_time: -1.0
         earlywarning_timeunit: 55
-        isPassWhenNoTransactor: null
-        isLockWhenMultiTransactor: 0
-        mobileHandleType: app
+        is_passwhennotransactor: null
+        is_lockwhenmultitransactor: 0
+        mobilehandletype: app
         iconx: '-159'
         icony: '123'
         vmlid: -1
@@ -69,7 +74,7 @@ workFlow:
             is_showoperationpage: 0
             operationvisiablecase: '10'
             is_shownextactivity: 1
-            is_ShowOpinionTemplete: 0
+            is_showopiniontemplete: 0
             ordernumber: 0
 
       # 2. 申请节点（activitytype=30，独立于开始节点）：填报提交，必须绑表单
@@ -81,8 +86,8 @@ workFlow:
         splittype: 30
         jointype: 30
         multitransactormode: 10
-        handleurl: "[#=FirstMaterialUrl#]"
-        mobilehandleurl: "[#=FirstMaterialUrl#]"
+        handleurl: "home/vuepagedesigner/renderer/add?pagetag={{PAGE_TAG_FORM}}"
+        mobilehandleurl: "home/vuepagedesigner/renderer/add?pagetag={{PAGE_TAG_FORM}}"
         isallowaddattachfile: 20
         timelimitenable: 20
         timelimit: -1.0
@@ -90,9 +95,9 @@ workFlow:
         earlywarning_enable: 20
         earlywarning_time: -1.0
         earlywarning_timeunit: 55
-        isPassWhenNoTransactor: 20
-        isLockWhenMultiTransactor: 0
-        mobileHandleType: app
+        is_passwhennotransactor: 20
+        is_lockwhenmultitransactor: 0
+        mobilehandletype: app
         iconx: '26.5'
         icony: '99'
         vmlid: 2
@@ -108,9 +113,9 @@ workFlow:
             is_showoperationpage: 1
             operationvisiablecase: '10'
             is_shownextactivity: 1
-            is_ShowOpinionTemplete: 0
+            is_showopiniontemplete: 0
             ordernumber: 0
-            stateLevel: 10                # 主按钮（蓝色），可选
+            statelevel: 10                # 主按钮（蓝色），可选
 
       # 3. 审批节点（activitytype=30）：可有多个；含通过 + 退回两个按钮
       - activityguid: {{ACTIVITY_APPROVE_GUID}}
@@ -121,8 +126,8 @@ workFlow:
         splittype: 30
         jointype: 30
         multitransactormode: 10
-        handleurl: "[#=FirstMaterialUrl#]"
-        mobilehandleurl: "[#=FirstMaterialUrl#]"
+        handleurl: "home/vuepagedesigner/renderer/add?pagetag={{PAGE_TAG_FORM}}"
+        mobilehandleurl: "home/vuepagedesigner/renderer/add?pagetag={{PAGE_TAG_FORM}}"
         isallowaddattachfile: 20
         timelimitenable: 20
         timelimit: -1.0
@@ -130,9 +135,9 @@ workFlow:
         earlywarning_enable: 20
         earlywarning_time: -1.0
         earlywarning_timeunit: 55
-        isPassWhenNoTransactor: 20
-        isLockWhenMultiTransactor: 0
-        mobileHandleType: app
+        is_passwhennotransactor: 20
+        is_lockwhenmultitransactor: 0
+        mobilehandletype: app
         iconx: '345.5'
         icony: '99'
         vmlid: 3
@@ -149,9 +154,9 @@ workFlow:
             is_showoperationpage: 1
             operationvisiablecase: '10'
             is_shownextactivity: 1
-            is_ShowOpinionTemplete: 0
+            is_showopiniontemplete: 0
             ordernumber: 0
-            stateLevel: 10                # 主按钮（蓝色），可选
+            statelevel: 10                # 主按钮（蓝色），可选
           - operationguid: {{OPERATION_APPROVE_REJECT_GUID}}
             activityguid: {{ACTIVITY_APPROVE_GUID}}
             processversionguid: {{PROCESS_VERSION_GUID}}
@@ -164,10 +169,10 @@ workFlow:
             is_shownextactivity: 0
             backtargetscope: '1'
             targetactivity: "[#=AllBeforeActivity#]"
-            multiTransctorMode: OR
-            is_ShowOpinionTemplete: 0
+            multitransctormode: OR
+            is_showopiniontemplete: 0
             ordernumber: 1
-            stateLevel: 30                # 危险按钮（红色），可选
+            statelevel: 30                # 危险按钮（红色），可选
 
       # 4. 结束节点（activitytype=20）
       - activityguid: {{ACTIVITY_END_GUID}}
@@ -187,9 +192,9 @@ workFlow:
         earlywarning_enable: null
         earlywarning_time: -1.0
         earlywarning_timeunit: 55
-        isPassWhenNoTransactor: null
-        isLockWhenMultiTransactor: 0
-        mobileHandleType: app
+        is_passwhennotransactor: null
+        is_lockwhenmultitransactor: 0
+        mobilehandletype: app
         iconx: '665'
         icony: '123'
         vmlid: 1
@@ -204,8 +209,8 @@ workFlow:
         splittype: 30
         jointype: null
         multitransactormode: null
-        handleurl: "[#=FirstMaterialUrl#]"
-        mobilehandleurl: "[#=FirstMaterialUrl#]"
+        handleurl: "home/vuepagedesigner/renderer/add?pagetag={{PAGE_TAG_DETAIL}}"
+        mobilehandleurl: "home/vuepagedesigner/renderer/add?pagetag={{PAGE_TAG_DETAIL}}"
         isallowaddattachfile: null
         timelimitenable: null
         timelimit: -1.0
@@ -213,9 +218,9 @@ workFlow:
         earlywarning_enable: null
         earlywarning_time: -1.0
         earlywarning_timeunit: 55
-        isPassWhenNoTransactor: null
-        isLockWhenMultiTransactor: 0
-        mobileHandleType: view
+        is_passwhennotransactor: null
+        is_lockwhenmultitransactor: 0
+        mobilehandletype: view
         iconx: '253'
         icony: '-20'
         vmlid: -2
@@ -243,35 +248,33 @@ workFlow:
         mobilepageurl_read: "{{MATERIAL_MOBILE_URL_READ}}"
         mobilepageurl_readandwrite: "{{MATERIAL_MOBILE_URL_READANDWRITE}}"
 
-    # 表单数据表映射（1 个表单 1 条）
+    # 表单数据表映射（1 个表单 1 条；spec v2: tableid 已废弃，引擎根据 sql_tablename 自动绑定）
     workflowPvMisTableSet:
       - mistablesetguid: {{MISTABLESET_GUID}}
         processversionguid: {{PROCESS_VERSION_GUID}}
         materialguid: {{MATERIAL_GUID}}
         tableguid: {{TABLE_GUID}}
-        tableid: {{TABLE_ID}}
         sql_tablename: "{{SQL_TABLENAME}}"
 
     # [可选] 相关数据 / 流程上下文参数（工作流扩展，用于流转条件中引用业务字段）
     # 真实示例（来源方式 30=表单字段，定义"金额"参数供条件分支使用）：
     # workflowContext:
     #   - fieldguid: {{CONTEXT_FIELD_GUID}}
-    #     fieldName: "jine"
+    #     fieldname: "jine"
     #     note: "金额"
-    #     fieldType: 10                 # 10=字符 / 20=整形 / 30=数字 / 40=时间 / 50=布尔
-    #     valueSource: 30               # 30=表单字段 / 10=直接赋值 / 20=方法获取
-    #     fromMaterialGuid: {{MATERIAL_GUID}}
-    #     fromMisTableId: '{{TABLE_ID}}'
-    #     fromFieldId: '1707'
-    #     fromFieldName: "jine"
-    #     fieldValue: '[#=EPOINTFORM({{SQL_TABLENAME}},jine,10)#]'
-    #     belongTo: 10
+    #     fieldtype: 10                 # 10=字符 / 20=整形 / 30=数字 / 40=时间 / 50=布尔
+    #     valuesource: 30               # 30=表单字段 / 10=直接赋值 / 20=方法获取
+    #     frommaterialguid: {{MATERIAL_GUID}}
+    #     fromsqltablename: "{{SQL_TABLENAME}}"   # spec v2: 取代 fromMisTableId
+    #     fromfieldname: "jine"                    # spec v2: 取代 fromFieldId（引擎根据 fromfieldname 自动绑定字段 id）
+    #     fieldvalue: '[#=EPOINTFORM({{SQL_TABLENAME}},jine,10)#]'
+    #     belongto: 10
     #     processversionguid: {{PROCESS_VERSION_GUID}}
 
     # [可选] 外部方法（工作流扩展，用于流程中调用业务逻辑）
     # 真实示例（更新业务表状态字段）：
     # method:
-    #   - methodGuid: {{METHOD_GUID}}
+    #   - methodguid: {{METHOD_GUID}}
     #     processversionguid: {{PROCESS_VERSION_GUID}}
     #     dllpath: ''
     #     typename: "com.epoint.xxx.workflow.ExternalMethods"
@@ -281,37 +284,37 @@ workFlow:
     #     ordernum: 0
     #     workflowMethodParameter:
     #       # 工作流上下文参数
-    #       - mpGuid: {{MP_CONTEXT_GUID}}
-    #         methodGuid: {{METHOD_GUID}}
+    #       - mpguid: {{MP_CONTEXT_GUID}}
+    #         methodguid: {{METHOD_GUID}}
     #         mpname: "context"
     #         mptype: 100               # 100=对象类型
     #         mpvalue: "[#=ExecutionContext#]"
     #         encrypt: '0'
     #         processversionguid: {{PROCESS_VERSION_GUID}}
-    #         orderNum: 50
+    #         ordernum: 50
     #         mpnamedescription: "上下文对象参数"
     #       # 常量参数
-    #       - mpGuid: {{MP_STATUS_GUID}}
-    #         methodGuid: {{METHOD_GUID}}
+    #       - mpguid: {{MP_STATUS_GUID}}
+    #         methodguid: {{METHOD_GUID}}
     #         mpname: "status"
     #         mptype: 10
     #         mpvalue: "2"
     #         encrypt: '0'
     #         processversionguid: {{PROCESS_VERSION_GUID}}
-    #         orderNum: 51
+    #         ordernum: 51
 
     # [可选] 事件配置（工作流扩展，挂在活动实例 / 操作前后的钩子）
     # 真实示例（送下一步按钮操作后调用 method 更新状态）：
     # workflowEvent:
-    #   - eventGuid: {{EVENT_GUID}}
-    #     eventName: "更新状态字段（送下一步按钮操作后处理）"
-    #     belongTo: 22                  # 22=活动操作 / 20=活动实例
-    #     eventType: 55                 # 55=操作后 / 50=操作前 / 25=活动完成后
-    #     sourceGuid: {{OPERATION_APPROVE_PASS_GUID}}   # 22 时填按钮 GUID；20 时填活动 GUID
+    #   - eventguid: {{EVENT_GUID}}
+    #     eventname: "更新状态字段（送下一步按钮操作后处理）"
+    #     belongto: 22                  # 22=活动操作 / 20=活动实例
+    #     eventtype: 55                 # 55=操作后 / 50=操作前 / 25=活动完成后
+    #     sourceguid: {{OPERATION_APPROVE_PASS_GUID}}   # 22 时填按钮 GUID；20 时填活动 GUID
     #     processversionguid: {{PROCESS_VERSION_GUID}}
-    #     syncType: 0                   # 0=同步 / 1=异步
-    #     orderNumber: 100
-    #     eventMethodGuid: {{METHOD_GUID}}
+    #     synctype: 0                   # 0=同步 / 1=异步
+    #     ordernumber: 100
+    #     eventmethodguid: {{METHOD_GUID}}
 
     # 节点流转关系（开始→申请→审批→...→结束，浏览节点孤立不参与流转）
     transition:
@@ -325,9 +328,9 @@ workFlow:
         is_sendtomessagecenter: 10
         priority: 60
         type: 10
-        targetActivityTransactorSource: 10
+        targetactivitytransactorsource: 10
         is_targettransactor_editable: 10
-        isDefault: 20
+        is_default: 20
         is_showasoperationbutton: 20
         vmlid: 2
 
@@ -341,9 +344,9 @@ workFlow:
         is_sendtomessagecenter: 10
         priority: 60
         type: 10
-        targetActivityTransactorSource: 10
+        targetactivitytransactorsource: 10
         is_targettransactor_editable: 10
-        isDefault: 20
+        is_default: 20
         is_showasoperationbutton: 20
         vmlid: 3
 
@@ -357,9 +360,9 @@ workFlow:
         is_sendtomessagecenter: 10
         priority: 60
         type: 10
-        targetActivityTransactorSource: 10
+        targetactivitytransactorsource: 10
         is_targettransactor_editable: 10
-        isDefault: 20
+        is_default: 20
         is_showasoperationbutton: 20
         vmlid: 4
 
@@ -376,9 +379,9 @@ workFlow:
       updatedate: "{{UPDATE_DATE}}"
       author: "{{AUTHOR_GUID}}"
       # 工作流扩展字段
-      isShowLineGraph: Normal
-      isShowNodeSimple: details
-      revokeOption: 20
-      revokeAllowDay: 0
-      revokeRemindOption: 20
-      noParticipatorOption: 10
+      isshowlinegraph: Normal
+      isshownodesimple: details
+      revokeoption: 20
+      revokeallowday: 0
+      revokeremindoption: 20
+      noparticipatoroption: 10

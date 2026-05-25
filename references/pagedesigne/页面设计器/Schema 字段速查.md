@@ -2,6 +2,25 @@
 
 > 本文档从 `页面设计器/index.md` 拆出，包含 viewport/theme 配置、表达式系统、校验规则与常见错误速查表。
 
+## 顶层字段（page Schema 第一层）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `pagetag` | string | ✅ | 页面标识，**应用内唯一**。全小写英文 + 数字 + 下划线，建议形如 `<业务>_<form/list/detail>`，如 `leaveapply_form` / `carapply_list` / `carapply_detail`。被 workflow 的 `handleurl` 引用：`home/vuepagedesigner/renderer/add?pagetag=<pagetag>` |
+| `schemaVersion` | string | ✅ | 固定 `core-1.0` |
+| `kind` | string | ✅ | 固定 `page` |
+| `id` | string | ✅ | 页面内部 id（与 pagetag 可不同；id 用于设计器节点引用，pagetag 用于运行时路由） |
+| `title` | string | ✅ | 页面标题（中文） |
+| `viewport` | object | ✅ | 视口配置，详见下方 |
+| `theme` | object | ❌ | 主题配置 |
+| `models` | object | ❌ | 业务数据模型注册表 |
+| `resources` | object | ❌ | 远程资源/接口注册表 |
+| `actions` | object | ❌ | 动作注册表 |
+| `events` | object | ❌ | 页面级事件注册表 |
+| `children` | array | ✅ | 视图树根 |
+
+> ⚠️ **pagetag 唯一性**：同一应用（同一 `<apptag>/pagedesigne/` 目录下）的所有 `*.pagedesigne.yml` 的 `pagetag` 不能重复。`scripts/validate_yml.py --check-refs` 会校验。
+
 ## viewport（视口）
 
 ```json
@@ -63,6 +82,7 @@
 | 校验项 | 校验方式 |
 |-------|---------|
 | `schemaVersion` 是 `core-1.0` | 字符串 |
+| `pagetag` 必填 + 应用内唯一 + 全小写英文/数字/下划线 | 字符串 / 跨文件唯一性 |
 | `kind` 是 `page` | 字符串 |
 | `children` 是数组 | 类型 |
 | 节点 `type` 是非空字符串 | 类型 |

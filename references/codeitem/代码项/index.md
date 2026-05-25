@@ -4,7 +4,7 @@
 
 `codeitem` 是低代码体系里的"**数据字典**"，用于定义业务枚举值（如审核状态、采购类型、行政区划）。每个 codeitem yml 描述**一组**同主题的代码值。
 
-- 与 metadata 目录的对应关系：`metadata/<apptag>/codeitem/<代码项名称>.codeitem.yml`（历史 `<名称>.yml` 仅兼容读取）
+- 与 应用根目录的对应关系：`<apptag>/codeitem/<代码项名称>.codeitem.yml`（历史 `<名称>.yml` 仅兼容读取）
 - 不在本资产范围内的事：
   - 字典在 UI 上的呈现样式（下拉/单选）由 `mis` 字段的 `fielddisplaytype` 决定，详见 `references/mis/数据模型/index.md`
   - 跨应用引用代码项的写法属于 `appref`，详见 `references/appref/引用配置/index.md`
@@ -30,7 +30,7 @@
   - `mis` 字段的 `datasourceCodename` 写代码项 `name`（如 `审核状态`），详见下文「[引用代码项的位置](#引用代码项的位置)」
   - 跨应用引用通过 `appref` 的 `engineguid: codeitem` 暴露
   - 前端 Vue 页面通过 `useDictionary('<name>')` 加载
-- 跨资产校验脚本：`scripts/validate_yml.py --check-refs <metadata>`
+- 跨资产校验脚本：`scripts/validate_yml.py --check-refs <app-root>`
 
 ---
 
@@ -39,9 +39,9 @@
 ## 文件位置与命名
 
 ```
-<metadata>/codeitem/<代码项名称>.codeitem.yml
+<app-root>/codeitem/<代码项名称>.codeitem.yml
                     或
-<metadata>/codeitem/<代码项名称>.codeitem.yml
+<app-root>/codeitem/<代码项名称>.codeitem.yml
 ```
 
 - 推荐**中文名**作为文件名（如 `审核状态.codeitem.yml`），与 yml 内 `name:` 字段保持一致
@@ -174,7 +174,7 @@ items:
 ```
 我准备把这个代码项写入 `.lowcode-plans/<apptag>-plan.md` 并先等你确认：
 
-- 路径：<metadata>/codeitem/审核状态.codeitem.yml
+- 路径：<app-root>/codeitem/审核状态.codeitem.yml
 - 名称：审核状态
 - 子项：
   - 草稿：0，排序 5
@@ -248,7 +248,7 @@ items:
 
 ```bash
 python scripts/add_codeitem.py \
-  --metadata <metadata 绝对路径> \
+  --app-root <应用根目录绝对路径> \
   --name 审核状态 \
   --description "审核状态字典" \
   --items-json '[
@@ -261,5 +261,5 @@ python scripts/add_codeitem.py \
 脚本会：
 1. 复制 `assets/templates/codeitem.yml` 模板
 2. 填入 name/description/items
-3. 写到 `<metadata>/codeitem/<name>.codeitem.yml`
+3. 写到 `<app-root>/codeitem/<name>.codeitem.yml`
 4. 跑一次静态校验

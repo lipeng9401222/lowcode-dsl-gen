@@ -4,16 +4,18 @@
 用法：
     # 创建无子模块的模块
     python add_module.py \\
-        --metadata /path/to/.../metadata \\
+        --app-root /path/to/.../<apptag> \\
         --name "主体管理" \\
         --code 9544
 
     # 创建含子模块的模块
     python add_module.py \\
-        --metadata /path/to/.../metadata \\
+        --app-root /path/to/.../<apptag> \\
         --name "采购立项管理" \\
         --code 9544 \\
         --sub-modules "采购人管理:9544_0001:/epoint/purchaseproject/purchase_user_list,供应商管理:9544_0002:/epoint/purchaseproject/supplier_list"
+
+兼容：--metadata 旧参数仍可用，等价于 --app-root（输出 deprecation warn）。
 """
 from __future__ import annotations
 
@@ -30,6 +32,7 @@ from _common import (  # noqa: E402
     print_err,
     print_info,
     print_ok,
+    print_warn,
     render_template,
     safe_filename,
     yaml_dump,
@@ -119,7 +122,8 @@ def build_sub_module(sub: dict, parent_guid: str, order: int) -> dict:
 
 def cli():
     parser = argparse.ArgumentParser(description="创建模块 yml")
-    parser.add_argument("--metadata", required=True, help="metadata 目录路径")
+    parser.add_argument("--app-root", "--metadata", dest="app_root", required=True,
+                        help="应用根目录路径（<apptag>/）。--metadata 是旧别名")
     parser.add_argument("--name", required=True, help="模块名称（中文）")
     parser.add_argument("--code", required=True, help="模块编码（4-8 位字符串）")
     parser.add_argument("--url", default="", help="模块 URL [空]")
@@ -137,12 +141,15 @@ def cli():
     parser.add_argument("--force", action="store_true", help="覆盖已存在文件")
     args = parser.parse_args()
 
-    metadata_dir = Path(args.metadata).resolve()
-    if not metadata_dir.is_dir():
-        print_err(f"metadata 目录不存在: {metadata_dir}")
+    if "--metadata" in sys.argv:
+        print_warn("--metadata 已废弃，建议改用 --app-root（功能相同，下版本将移除）")
+
+    app_root = Path(args.app_root).resolve()
+    if not app_root.is_dir():
+        print_err(f"应用根目录不存在: {app_root}")
         return 1
 
-    module_dir = metadata_dir / "module"
+    module_dir = app_root / "module"
     module_dir.mkdir(parents=True, exist_ok=True)
 
     base_name = args.filename or safe_filename(args.name)

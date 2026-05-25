@@ -4,7 +4,7 @@
 
 `module` 即"**菜单/模块定义**"，对应平台上左侧导航树/顶部菜单的某一个节点。一个 module yml 描述一个**根模块 + 子模块树**，支持多级 `items` 嵌套。
 
-- 与 metadata 目录的对应关系：`metadata/<apptag>/module/<模块名>.module.yml`
+- 与 应用根目录的对应关系：`<apptag>/module/<模块名>.module.yml`
 - 不在本资产范围内的事：
   - 模块所指向的页面（`url`/`routePath`）由前端工程或 `pagedesigne` 提供
   - 跨应用挂载/引用模块属于 `appref`，详见 `references/appref/引用配置/index.md`
@@ -31,7 +31,7 @@
   - `url` / `routePath` 指向前端页面（不强约束 yml 资产，但通常对应 `pagedesigne` 或自定义 vue）
 - 被其他资产引用：
   - `appref` 通过 `engineguid: module` + 模块 `guid` / `name` 引用模块（实现跨应用菜单挂载）
-- 跨资产校验脚本：`scripts/validate_yml.py --check-refs <metadata>`
+- 跨资产校验脚本：`scripts/validate_yml.py --check-refs <app-root>`
 
 ---
 
@@ -40,7 +40,7 @@
 ## 文件位置与命名
 
 ```
-<metadata>/module/<模块名>.module.yml
+<app-root>/module/<模块名>.module.yml
 ```
 
 推荐中文文件名（如 `主体管理.module.yml`）。

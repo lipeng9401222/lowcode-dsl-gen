@@ -27,7 +27,7 @@
         --metadata /path/to/metadata \\
         --name "请假审批流程" \\
         --material "请假申请表" \\
-        --form-id 159 --table-id 2024072378 \\
+        --form-id 159 --sql-tablename formtable20260112164507245 \\
         --sql-tablename formtable20260112164507245
 """
 from __future__ import annotations
@@ -44,9 +44,53 @@ from _common import (  # noqa: E402
     print_err,
     print_info,
     print_ok,
+    print_warn,
     safe_filename,
     yaml_dump,
 )
+
+
+def _resolve_pagetags(app_root: Path, page_tag_form: str, page_tag_detail: str):
+    """根据用户传参 + 同应用 pagedesigne 自动推断 pagetag.
+
+    返回 (page_tag_form, page_tag_detail)：
+        - 用户显式传值 → 直接用
+        - 未传 + 同应用下仅 1 份 pagedesigne → 自动取该 pagetag（form/detail 都用它）
+        - 未传 + 多份 pagedesigne → 给提示并返回 (None, None) 让 cli 退出
+        - 没有 pagedesigne 目录或为空 → 返回 ("", "")，handleurl 回退到 [#=FirstMaterialUrl#]
+    """
+    if page_tag_form:
+        return page_tag_form, page_tag_detail or page_tag_form
+
+    page_dir = app_root / "pagedesigne"
+    if not page_dir.is_dir():
+        return "", ""
+
+    import re as _re
+    candidates: list[tuple[str, Path]] = []
+    for path in list(page_dir.glob("*.pagedesigne.yml")) + list(page_dir.glob("*.json")):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = _re.search(r'"pagetag"\s*:\s*"([^"]+)"', text)
+        if m:
+            candidates.append((m.group(1), path))
+
+    if not candidates:
+        return "", ""
+    if len(candidates) == 1:
+        tag = candidates[0][0]
+        print_info(f"自动推断 pagetag：{tag}（取自 {candidates[0][1].name}）")
+        return tag, page_tag_detail or tag
+
+    # 多份歧义
+    print_err(
+        f"检测到 {len(candidates)} 个 pagedesigne 文件，请通过 --pagetag-form / --pagetag-detail 显式指定 pagetag："
+    )
+    for tag, path in candidates:
+        print_err(f"  - {path.name}: pagetag={tag}")
+    return None, None
 
 
 # ============================================================
@@ -57,7 +101,7 @@ def _common_emptyish_for_terminal_node() -> dict:
     """开始/结束/浏览节点的"应为空"字段（按规范红线）.
 
     multitransactormode/handleurl/mobilehandleurl/isallowaddattachfile/
-    timelimitenable/earlywarning_enable/isPassWhenNoTransactor 设为 None.
+    timelimitenable/earlywarning_enable/is_passwhennotransactor 设为 None.
     """
     return {
         "multitransactormode": None,
@@ -66,7 +110,7 @@ def _common_emptyish_for_terminal_node() -> dict:
         "isallowaddattachfile": None,
         "timelimitenable": None,
         "earlywarning_enable": None,
-        "isPassWhenNoTransactor": None,
+        "is_passwhennotransactor": None,
     }
 
 
@@ -84,8 +128,8 @@ def build_start_activity(*, activity_guid: str, process_version_guid: str) -> di
         "timelimitunit": 55,
         "earlywarning_time": -1.0,
         "earlywarning_timeunit": 55,
-        "isLockWhenMultiTransactor": 0,
-        "mobileHandleType": "app",
+        "is_lockwhenmultitransactor": 0,
+        "mobilehandletype": "app",
         "iconx": "-159",
         "icony": "123",
         "vmlid": -1,
@@ -103,14 +147,19 @@ def build_start_activity(*, activity_guid: str, process_version_guid: str) -> di
         "is_showoperationpage": 0,
         "operationvisiablecase": "10",
         "is_shownextactivity": 1,
-        "is_ShowOpinionTemplete": 0,
+        "is_showopiniontemplete": 0,
         "ordernumber": 0,
     }]
     return activity
 
 
-def build_apply_activity(*, activity_guid: str, process_version_guid: str, vml_id: int = 2) -> dict:
+def build_apply_activity(*, activity_guid: str, process_version_guid: str, vml_id: int = 2,
+                         page_tag_form: str = "") -> dict:
     """申请节点（activitytype=30，独立于开始节点）：填报提交，必须绑表单."""
+    handle_url = (
+        f"home/vuepagedesigner/renderer/add?pagetag={page_tag_form}"
+        if page_tag_form else "[#=FirstMaterialUrl#]"
+    )
     return {
         "activityguid": activity_guid,
         "activityname": "申请",
@@ -120,8 +169,8 @@ def build_apply_activity(*, activity_guid: str, process_version_guid: str, vml_i
         "splittype": 30,
         "jointype": 30,
         "multitransactormode": 10,
-        "handleurl": "[#=FirstMaterialUrl#]",
-        "mobilehandleurl": "[#=FirstMaterialUrl#]",
+        "handleurl": handle_url,
+        "mobilehandleurl": handle_url,
         "isallowaddattachfile": 20,
         "timelimitenable": 20,
         "timelimit": -1.0,
@@ -129,9 +178,9 @@ def build_apply_activity(*, activity_guid: str, process_version_guid: str, vml_i
         "earlywarning_enable": 20,
         "earlywarning_time": -1.0,
         "earlywarning_timeunit": 55,
-        "isPassWhenNoTransactor": 20,
-        "isLockWhenMultiTransactor": 0,
-        "mobileHandleType": "app",
+        "is_passwhennotransactor": 20,
+        "is_lockwhenmultitransactor": 0,
+        "mobilehandletype": "app",
         "iconx": "26.5",
         "icony": "99",
         "vmlid": vml_id,
@@ -147,8 +196,13 @@ def build_approve_activity(
     vml_id: int,
     icon_x: float,
     is_free: bool = False,
+    page_tag_form: str = "",
 ) -> dict:
     """普通审批节点（activitytype=30）：可有多个."""
+    handle_url = (
+        f"home/vuepagedesigner/renderer/add?pagetag={page_tag_form}"
+        if page_tag_form else "[#=FirstMaterialUrl#]"
+    )
     return {
         "activityguid": activity_guid,
         "activityname": name,
@@ -158,8 +212,8 @@ def build_approve_activity(
         "splittype": 30,
         "jointype": 30,
         "multitransactormode": 25 if is_free else 10,
-        "handleurl": "[#=FirstMaterialUrl#]",
-        "mobilehandleurl": "[#=FirstMaterialUrl#]",
+        "handleurl": handle_url,
+        "mobilehandleurl": handle_url,
         "isallowaddattachfile": 20,
         "timelimitenable": 20,
         "timelimit": -1.0,
@@ -167,9 +221,9 @@ def build_approve_activity(
         "earlywarning_enable": 20,
         "earlywarning_time": -1.0,
         "earlywarning_timeunit": 55,
-        "isPassWhenNoTransactor": 10 if is_free else 20,
-        "isLockWhenMultiTransactor": 0,
-        "mobileHandleType": "app",
+        "is_passwhennotransactor": 10 if is_free else 20,
+        "is_lockwhenmultitransactor": 0,
+        "mobilehandletype": "app",
         "iconx": str(icon_x),
         "icony": "99",
         "vmlid": vml_id,
@@ -188,8 +242,13 @@ def build_subprocess_activity(
     callsubprocessguid: str,
     subprocesssynctype: int = 20,
     sub_multi_mode: int = 10,
+    page_tag_form: str = "",
 ) -> dict:
     """子流程节点（activitytype=90）。"""
+    handle_url = (
+        f"home/vuepagedesigner/renderer/add?pagetag={page_tag_form}"
+        if page_tag_form else "[#=FirstMaterialUrl#]"
+    )
     return {
         "activityguid": activity_guid,
         "activityname": name,
@@ -202,8 +261,8 @@ def build_subprocess_activity(
         "subprocesssynctype": subprocesssynctype,
         "multitransactormode": 10,
         "subProMultiTransctorMode": sub_multi_mode,
-        "handleurl": "[#=FirstMaterialUrl#]",
-        "mobilehandleurl": "[#=FirstMaterialUrl#]",
+        "handleurl": handle_url,
+        "mobilehandleurl": handle_url,
         "isallowaddattachfile": 20,
         "timelimitenable": 20,
         "timelimit": -1.0,
@@ -211,9 +270,9 @@ def build_subprocess_activity(
         "earlywarning_enable": 20,
         "earlywarning_time": -1.0,
         "earlywarning_timeunit": 55,
-        "isPassWhenNoTransactor": 20,
-        "isLockWhenMultiTransactor": 0,
-        "mobileHandleType": "app",
+        "is_passwhennotransactor": 20,
+        "is_lockwhenmultitransactor": 0,
+        "mobilehandletype": "app",
         "iconx": str(icon_x),
         "icony": "99",
         "vmlid": vml_id,
@@ -240,8 +299,8 @@ def build_end_activity(
         "timelimitunit": 55,
         "earlywarning_time": -1.0,
         "earlywarning_timeunit": 55,
-        "isLockWhenMultiTransactor": 0,
-        "mobileHandleType": "app",
+        "is_lockwhenmultitransactor": 0,
+        "mobilehandletype": "app",
         "iconx": str(icon_x),
         "icony": "123",
         "vmlid": 1,
@@ -251,8 +310,13 @@ def build_end_activity(
     return activity
 
 
-def build_browse_activity(*, activity_guid: str, process_version_guid: str) -> dict:
+def build_browse_activity(*, activity_guid: str, process_version_guid: str,
+                          page_tag_detail: str = "") -> dict:
     """浏览节点（activitytype=100，孤立节点）：位置置于流程上方."""
+    handle_url = (
+        f"home/vuepagedesigner/renderer/add?pagetag={page_tag_detail}"
+        if page_tag_detail else "[#=FirstMaterialUrl#]"
+    )
     activity = {
         "activityguid": activity_guid,
         "activityname": "浏览",
@@ -261,14 +325,14 @@ def build_browse_activity(*, activity_guid: str, process_version_guid: str) -> d
         "activitytype": 100,
         "splittype": 30,
         "jointype": None,
-        "handleurl": "[#=FirstMaterialUrl#]",
-        "mobilehandleurl": "[#=FirstMaterialUrl#]",
+        "handleurl": handle_url,
+        "mobilehandleurl": handle_url,
         "timelimit": -1.0,
         "timelimitunit": 55,
         "earlywarning_time": -1.0,
         "earlywarning_timeunit": 55,
-        "isLockWhenMultiTransactor": 0,
-        "mobileHandleType": "view",
+        "is_lockwhenmultitransactor": 0,
+        "mobilehandletype": "view",
         "iconx": "253",
         "icony": "-20",
         "vmlid": -2,
@@ -311,9 +375,9 @@ def build_pass_operation(
         "is_showoperationpage": 1,
         "operationvisiablecase": "10",
         "is_shownextactivity": 1,
-        "is_ShowOpinionTemplete": 0,
+        "is_showopiniontemplete": 0,
         "ordernumber": ordernumber,
-        "stateLevel": state_level,
+        "statelevel": state_level,
     }
 
 
@@ -326,7 +390,7 @@ def build_reject_operation(
 ) -> dict:
     """退回按钮（operationtype=30）.
 
-    必带 backtargetscope='1'、targetactivity='[#=AllBeforeActivity#]'、multiTransctorMode='OR'
+    必带 backtargetscope='1'、targetactivity='[#=AllBeforeActivity#]'、multitransctormode='OR'
     需配合 workflowConfig（belongto=22, configname=backTargetScope, sourceguid=该按钮 operationguid）.
     state_level 默认 30（危险按钮，红色）.
     """
@@ -343,10 +407,10 @@ def build_reject_operation(
         "is_shownextactivity": 0,
         "backtargetscope": "1",
         "targetactivity": "[#=AllBeforeActivity#]",
-        "multiTransctorMode": "OR",
-        "is_ShowOpinionTemplete": 0,
+        "multitransctormode": "OR",
+        "is_showopiniontemplete": 0,
         "ordernumber": ordernumber,
-        "stateLevel": state_level,
+        "statelevel": state_level,
     }
 
 
@@ -368,14 +432,14 @@ def build_custom_design_operation(
         "is_showoperationpage": 1,
         "operationvisiablecase": "10",
         "is_shownextactivity": 0,
-        "is_ShowOpinionTemplete": 0,
+        "is_showopiniontemplete": 0,
         "ordernumber": ordernumber,
-        "stateLevel": 10,
+        "statelevel": 10,
         "operationpageurl": (
             '{"url":"frame/pages/epointworkflow/client/flowsetting?'
             'processVersionInstanceGuid=[#=ProcessVersionInstance_ProcessVersionInstanceGuid#]&'
             'workItemGuid=[#=WorkItem_WorkItemGuid#]&'
-            'processVersionGuid=[#=ProcessVersion_ProcessVersionGuid#]",'
+            'processversionguid=[#=ProcessVersion_ProcessVersionGuid#]",'
             '"dialog":{"fullscreen": true}}'
         ),
     }
@@ -392,10 +456,10 @@ def _parse_json_list_arg(value: str, label: str) -> list[dict]:
 
 
 def _normalize_method(raw: dict, process_version_guid: str, index: int) -> dict:
-    method_guid = raw.get("methodGuid") or raw.get("methodguid") or gen_uuid()
+    method_guid = raw.get("methodguid") or gen_uuid()
     item = {
-        "methodGuid": method_guid,
-        "processversionguid": raw.get("processversionguid") or raw.get("processVersionGuid") or process_version_guid,
+        "methodguid": method_guid,
+        "processversionguid": raw.get("processversionguid") or process_version_guid,
         "dllpath": raw.get("dllpath", ""),
         "typename": raw.get("typename", ""),
         "methodname": raw.get("methodname", raw.get("name", "")),
@@ -403,21 +467,21 @@ def _normalize_method(raw: dict, process_version_guid: str, index: int) -> dict:
         "note": raw.get("note", raw.get("description", "")),
         "ordernum": int(raw.get("ordernum", (index + 1) * 10)),
     }
-    if raw.get("ruleguid") or raw.get("ruleGuid"):
-        item["ruleguid"] = raw.get("ruleguid") or raw.get("ruleGuid")
+    if raw.get("ruleguid"):
+        item["ruleguid"] = raw.get("ruleguid")
     params = []
     for j, param in enumerate(raw.get("workflowMethodParameter") or raw.get("params") or []):
         if not isinstance(param, dict):
             continue
         params.append({
-            "mpGuid": param.get("mpGuid") or param.get("mpguid") or gen_uuid(),
-            "methodGuid": method_guid,
+            "mpguid": param.get("mpguid") or param.get("mpguid") or gen_uuid(),
+            "methodguid": method_guid,
             "mpname": param.get("mpname", param.get("name", "")),
             "mptype": int(param.get("mptype", 10)),
             "mpvalue": param.get("mpvalue", param.get("value", "")),
             "encrypt": str(param.get("encrypt", "0")),
-            "processversionguid": param.get("processversionguid") or param.get("processVersionGuid") or process_version_guid,
-            "ordernum": int(param.get("ordernum", param.get("orderNum", (j + 1) * 10))),
+            "processversionguid": param.get("processversionguid") or param.get("processversionguid") or process_version_guid,
+            "ordernum": int(param.get("ordernum", param.get("ordernum", (j + 1) * 10))),
             "fieldguid": param.get("fieldguid", ""),
             "tenantguid": param.get("tenantguid", ""),
             "mpnamedescription": param.get("mpnamedescription", param.get("nameDescription", "")),
@@ -429,72 +493,78 @@ def _normalize_method(raw: dict, process_version_guid: str, index: int) -> dict:
 
 
 def _normalize_event(raw: dict, process_version_guid: str, activity_lookup: dict[str, str], operation_lookup: dict[str, str], index: int) -> dict:
-    belong_to = int(raw.get("belongTo", raw.get("belongto", 20)))
+    belong_to = int(raw.get("belongto", 20))
     source_guid = (
-        raw.get("sourceGuid")
-        or raw.get("sourceguid")
+        raw.get("sourceguid")
         or activity_lookup.get(raw.get("sourceActivity", ""))
         or operation_lookup.get(raw.get("sourceOperation", ""))
         or ""
     )
     item = {
-        "eventGuid": raw.get("eventGuid") or raw.get("eventguid") or gen_uuid(),
-        "eventName": raw.get("eventName") or raw.get("eventname") or raw.get("name", f"流程事件{index + 1}"),
-        "belongTo": belong_to,
-        "eventType": int(raw.get("eventType", raw.get("eventtype", 25 if belong_to == 20 else 55))),
-        "sourceGuid": source_guid,
-        "processversionguid": raw.get("processversionguid") or raw.get("processVersionGuid") or process_version_guid,
-        "syncType": int(raw.get("syncType", raw.get("synctype", 0))),
-        "orderNumber": int(raw.get("orderNumber", raw.get("ordernumber", (index + 1) * 100))),
+        "eventguid": raw.get("eventguid") or gen_uuid(),
+        "eventname": raw.get("eventname") or raw.get("name", f"流程事件{index + 1}"),
+        "belongto": belong_to,
+        "eventtype": int(raw.get("eventtype", 25 if belong_to == 20 else 55)),
+        "sourceguid": source_guid,
+        "processversionguid": raw.get("processversionguid") or process_version_guid,
+        "synctype": int(raw.get("synctype", 0)),
+        "ordernumber": int(raw.get("ordernumber", raw.get("ordernumber", (index + 1) * 100))),
     }
-    if raw.get("eventMethodGuid") or raw.get("eventmethodguid"):
-        item["eventMethodGuid"] = raw.get("eventMethodGuid") or raw.get("eventmethodguid")
-    if raw.get("ruleGuid") or raw.get("ruleguid"):
-        item["ruleGuid"] = raw.get("ruleGuid") or raw.get("ruleguid")
-    if raw.get("baseOuguid") or raw.get("baseouguid"):
-        item["baseOuguid"] = raw.get("baseOuguid") or raw.get("baseouguid")
+    if raw.get("eventmethodguid"):
+        item["eventmethodguid"] = raw.get("eventmethodguid")
+    if raw.get("ruleguid"):
+        item["ruleguid"] = raw.get("ruleguid")
+    if raw.get("baseouguid"):
+        item["baseouguid"] = raw.get("baseouguid")
     return item
 
 
-def _normalize_context(raw: dict, process_version_guid: str, material_guid: str, table_id, index: int) -> dict:
-    value_source = int(raw.get("valueSource", raw.get("valuesource", 10)))
+def _normalize_context(raw: dict, process_version_guid: str, material_guid: str, sql_tablename: str, index: int) -> dict:
+    value_source = int(raw.get("valuesource", 10))
     item = {
-        "fieldguid": raw.get("fieldguid") or raw.get("fieldGuid") or gen_uuid(),
-        "fieldName": raw.get("fieldName") or raw.get("fieldname") or raw.get("name", f"context{index + 1}"),
-        "belongTo": int(raw.get("belongTo", raw.get("belongto", 10))),
-        "fieldType": int(raw.get("fieldType", raw.get("fieldtype", 10))),
-        "valueSource": value_source,
-        "fieldValue": raw.get("fieldValue", raw.get("fieldvalue", "")),
-        "processversionguid": raw.get("processversionguid") or raw.get("processVersionGuid") or process_version_guid,
+        "fieldguid": raw.get("fieldguid") or gen_uuid(),
+        "fieldname": raw.get("fieldname") or raw.get("name", f"context{index + 1}"),
+        "belongto": int(raw.get("belongto", 10)),
+        "fieldtype": int(raw.get("fieldtype", 10)),
+        "valuesource": value_source,
+        "fieldvalue": raw.get("fieldvalue", ""),
+        "processversionguid": raw.get("processversionguid") or process_version_guid,
         "note": raw.get("note", raw.get("description", "")),
     }
     if value_source == 30:
-        item["fromMaterialGuid"] = raw.get("fromMaterialGuid") or raw.get("frommaterialguid") or material_guid
-        item["fromMisTableId"] = str(raw.get("fromMisTableId", raw.get("frommistableid", table_id or "")))
-        item["fromFieldId"] = str(raw.get("fromFieldId", raw.get("fromfieldid", "")))
-        item["fromFieldName"] = raw.get("fromFieldName") or raw.get("fromfieldname") or item["fieldName"]
+        item["frommaterialguid"] = raw.get("frommaterialguid") or material_guid
+        # spec v2: fromsqltablename 取代 fromMisTableId / fromFieldId
+        # 入参兼容：优先 fromsqltablename，老入参 fromMisTableId / frommistableid 不再使用
+        item["fromsqltablename"] = (
+            raw.get("fromsqltablename")
+            or raw.get("fromSqlTableName")
+            or raw.get("from_sqltablename")
+            or sql_tablename
+            or ""
+        )
+        item["fromfieldname"] = raw.get("fromfieldname") or item["fieldname"]
     return item
 
 
 def _normalize_condition(raw: dict, process_version_guid: str, transition_guid: str, index: int) -> dict:
-    expression_type = int(raw.get("conditionExpressionType", raw.get("conditionexpressiontype", 10)))
+    expression_type = int(raw.get("conditionexpressiontype", 10))
     item = {
-        "conditionGuid": raw.get("conditionGuid") or raw.get("conditionguid") or gen_uuid(),
-        "conditionName": raw.get("conditionName") or raw.get("conditionname") or raw.get("name", f"流转条件{index + 1}"),
-        "transitionGuid": raw.get("transitionGuid") or raw.get("transitionguid") or transition_guid,
-        "conditionExpressionType": expression_type,
-        "processversionguid": raw.get("processversionguid") or raw.get("processVersionGuid") or process_version_guid,
-        "orderNum": int(raw.get("orderNum", raw.get("ordernum", index))),
+        "conditionguid": raw.get("conditionguid") or gen_uuid(),
+        "conditionname": raw.get("conditionname") or raw.get("name", f"流转条件{index + 1}"),
+        "transitionguid": raw.get("transitionguid") or transition_guid,
+        "conditionexpressiontype": expression_type,
+        "processversionguid": raw.get("processversionguid") or process_version_guid,
+        "ordernum": int(raw.get("ordernum", index)),
     }
     for key in (
-        "leftValue", "leftText", "compareOperation", "rightValue", "rightText",
-        "valueType", "conditionExpression", "methodGuid", "ruleGuid", "remark",
+        "leftvalue", "lefttext", "compareoperation", "rightvalue", "righttext",
+        "valuetype", "conditionexpression", "methodguid", "ruleguid", "remark",
     ):
         alt = key[:1].lower() + key[1:]
         if key in raw or alt in raw:
             item[key] = raw.get(key, raw.get(alt))
-    if expression_type == 10 and "valueType" not in item:
-        item["valueType"] = 10
+    if expression_type == 10 and "valuetype" not in item:
+        item["valuetype"] = 10
     return item
 
 
@@ -524,9 +594,9 @@ def build_transition(
         "is_sendtomessagecenter": 10,
         "priority": 60,
         "type": 10,
-        "targetActivityTransactorSource": 10,
+        "targetactivitytransactorsource": 10,
         "is_targettransactor_editable": 10,
-        "isDefault": 20,
+        "is_default": 20,
         "is_showasoperationbutton": 20,
         "vmlid": vml_id,
     }
@@ -540,7 +610,8 @@ def cli():
     parser = argparse.ArgumentParser(
         description="按《Epoint 工作流 YAML 定义规范》生成工作流 yml",
     )
-    parser.add_argument("--metadata", required=True, help="metadata 目录路径")
+    parser.add_argument("--app-root", "--metadata", dest="app_root", required=True,
+                        help="应用根目录路径（<apptag>/）。--metadata 是旧别名，仍可用")
     parser.add_argument("--name", required=True, help="流程名称（中文）")
     parser.add_argument(
         "--approvers", default="审批",
@@ -556,7 +627,7 @@ def cli():
     )
     parser.add_argument(
         "--table-id", type=int, default=None,
-        help="数据表 ID（workflowPvMisTableSet.tableid），必须为整数，不能超过 2147483647",
+        help="[已废弃 spec v2] 该参数仍接受但不再写入 yml；引擎根据 sql_tablename 自动绑定 mis 表",
     )
     parser.add_argument(
         "--sql-tablename", default="",
@@ -573,7 +644,7 @@ def cli():
         help="流程模式：normal 普通 / custom 自定义流程 / free 自由流程 / subprocess 主子流程 [normal]",
     )
     parser.add_argument("--methods-json", default="", help="外部方法数组 JSON，可包含 ruleguid 关联动作流")
-    parser.add_argument("--events-json", default="", help="流程事件数组 JSON，可包含 ruleGuid 关联动作流")
+    parser.add_argument("--events-json", default="", help="流程事件数组 JSON，可包含 ruleguid 关联动作流")
     parser.add_argument("--contexts-json", default="", help="相关数据 workflowContext 数组 JSON")
     parser.add_argument("--conditions-json", default="", help="流转条件数组 JSON，可按 transition/transitionname/transitionIndex 定位")
     parser.add_argument("--free-activities", default="", help="自由流程节点名称，逗号分隔；process-mode=free 时默认所有审批节点")
@@ -586,17 +657,48 @@ def cli():
     parser.add_argument("--revoke-allow-day", type=int, default=0, help="发起人允许撤销天数 [0]")
     parser.add_argument("--revoke-remind-option", type=int, default=20, help="发起人撤销提醒设置 [20]")
     parser.add_argument("--no-participator-option", type=int, default=10, help="预设处理人不存在时操作 [10]")
-    parser.add_argument("--default-user-guid", default="", help="noParticipatorOption=30 时指定处理人 GUID")
+    parser.add_argument("--default-user-guid", default="", help="noparticipatoroption=30 时指定处理人 GUID")
+    parser.add_argument("--pagetag-form", default="",
+                        help="申请/审批节点 handleurl 拼接的表单页 pagetag；不填时自动扫 <app-root>/pagedesigne/ 推断（仅 1 份时自动取，多份时报错）")
+    parser.add_argument("--pagetag-detail", default="",
+                        help="浏览节点 handleurl 拼接的详情页 pagetag；不填时复用 --pagetag-form")
+    parser.add_argument("--activity-materials-json", default="",
+                        help="活动材料权限 JSON 数组（spec v2 可选）：按 activityName 匹配，"
+                             "生成 workflowActivityMaterial + workflowActivityFieldAccess 嵌套结构。"
+                             "格式见 references/workflow/工作流/基础骨架/02-活动按钮.md")
+    parser.add_argument("--activity-extra-json", default="",
+                        help="活动通用扩展字段 JSON 数组（spec v2 可选）：按 activityName 匹配，"
+                             "支持 addattachfilesource / locktimewhenmultitransactor / smscontent / "
+                             "overtimeremindcontent / mobileappletrules 等扩展字段")
+    parser.add_argument("--approve-pass-rate-json", default="",
+                        help="审批节点通过率 JSON 数组（spec v2 可选）：按 activityName 匹配，"
+                             "支持 passrate (0-100) / passratecalculatemode (10或20) / nopasshandlevalue ('10'或'20')")
     parser.add_argument("--filename", help="自定义文件名（不含扩展名），默认用 name")
     parser.add_argument("--force", action="store_true", help="覆盖已存在文件")
     args = parser.parse_args()
 
-    metadata_dir = Path(args.metadata).resolve()
-    if not metadata_dir.is_dir():
-        print_err(f"metadata 目录不存在: {metadata_dir}")
+    # 兼容老的 --metadata 参数：若用户用了它，给一次 deprecation 提示
+    if "--metadata" in sys.argv:
+        print_warn("--metadata 已废弃，建议改用 --app-root（功能相同，下版本将移除）")
+    # spec v2: --table-id 已废弃，仅作 alias 接受，不再写入 yml
+    if "--table-id" in sys.argv:
+        print_warn("--table-id 已废弃（spec v2），引擎根据 sql_tablename 自动绑定 mis 表，本次不会写入 yml")
+
+    app_root = Path(args.app_root).resolve()
+    if not app_root.is_dir():
+        print_err(f"应用根目录不存在: {app_root}")
         return 1
 
-    workflow_dir = metadata_dir / "workflow"
+    # 自动扫 pagedesigne 推断 pagetag
+    page_tag_form, page_tag_detail = _resolve_pagetags(
+        app_root, args.pagetag_form, args.pagetag_detail
+    )
+    if page_tag_form is None:  # 多份歧义错误
+        return 1
+    args.pagetag_form_resolved = page_tag_form
+    args.pagetag_detail_resolved = page_tag_detail or page_tag_form
+
+    workflow_dir = app_root / "workflow"
     workflow_dir.mkdir(parents=True, exist_ok=True)
 
     base_name = args.filename or safe_filename(args.name)
@@ -619,6 +721,10 @@ def cli():
         events_raw = _parse_json_list_arg(args.events_json, "--events-json")
         contexts_raw = _parse_json_list_arg(args.contexts_json, "--contexts-json")
         conditions_raw = _parse_json_list_arg(args.conditions_json, "--conditions-json")
+        # spec v2 新增：活动材料权限 / 活动扩展字段 / 通过率
+        activity_materials_raw = _parse_json_list_arg(args.activity_materials_json, "--activity-materials-json")
+        activity_extra_raw = _parse_json_list_arg(args.activity_extra_json, "--activity-extra-json")
+        approve_pass_rate_raw = _parse_json_list_arg(args.approve_pass_rate_json, "--approve-pass-rate-json")
     except ValueError as e:
         print_err(str(e))
         return 1
@@ -661,6 +767,7 @@ def cli():
         activity_guid=apply_guid,
         process_version_guid=process_version_guid,
         vml_id=2,
+        page_tag_form=args.pagetag_form_resolved,
     )
     # 申请节点：送下一步（指向第一个审批节点）
     apply_activity["workflowActivityOperation"] = [
@@ -684,6 +791,7 @@ def cli():
             callsubprocessguid=args.subprocess_guid,
             subprocesssynctype=args.subprocess_sync_type,
             sub_multi_mode=args.subprocess_multi_transactor_mode,
+            page_tag_form=args.pagetag_form_resolved,
         ))
         next_vml_id += 1
         next_icon_x += 200
@@ -699,6 +807,7 @@ def cli():
             vml_id=next_vml_id + i,
             icon_x=next_icon_x + i * 200,
             is_free=name in free_activity_names,
+            page_tag_form=args.pagetag_form_resolved,
         )
         pass_op = build_pass_operation(
             activity_guid=guid,
@@ -733,7 +842,101 @@ def cli():
     activities.append(build_browse_activity(
         activity_guid=browse_guid,
         process_version_guid=process_version_guid,
+        page_tag_detail=args.pagetag_detail_resolved,
     ))
+
+    # ============================================================
+    # spec v2 可选增强：按 activityName 注入扩展字段、通过率、活动材料权限
+    # ============================================================
+    activity_name_lookup = {act.get("activityname"): act for act in activities}
+
+    # F.activity-extra：按名字注入通用扩展字段
+    EXTRA_ALLOWED_FIELDS = {
+        "addattachfilesource", "joinmethodguid", "locktimewhenmultitransactor",
+        "mobileappletrules", "smscontent", "overtimeremindcontent",
+    }
+    for entry in activity_extra_raw or []:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("activityName") or entry.get("activityname")
+        if not name or name not in activity_name_lookup:
+            print_warn(f"--activity-extra-json: 未找到名为 '{name}' 的活动节点，跳过")
+            continue
+        target_act = activity_name_lookup[name]
+        for k, v in entry.items():
+            if k in ("activityName", "activityname"):
+                continue
+            if k.lower() in EXTRA_ALLOWED_FIELDS:
+                target_act[k.lower()] = v
+            else:
+                print_warn(f"--activity-extra-json: 字段 '{k}' 不在允许扩展字段集合，跳过")
+
+    # F.approve-pass-rate：按名字注入审批通过率
+    PASS_RATE_FIELDS = {"passrate", "passratecalculatemode", "nopasshandlevalue"}
+    for entry in approve_pass_rate_raw or []:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("activityName") or entry.get("activityname")
+        if not name or name not in activity_name_lookup:
+            print_warn(f"--approve-pass-rate-json: 未找到名为 '{name}' 的活动节点，跳过")
+            continue
+        target_act = activity_name_lookup[name]
+        if target_act.get("activitytype") != 30 or target_act.get("activityname") == "申请":
+            print_warn(f"--approve-pass-rate-json: '{name}' 不是审批节点（activitytype=30），跳过")
+            continue
+        for k in PASS_RATE_FIELDS:
+            if k in entry:
+                target_act[k] = entry[k]
+
+    # C.activity-materials：按名字注入 workflowActivityMaterial + workflowActivityFieldAccess
+    for entry in activity_materials_raw or []:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("activityName") or entry.get("activityname")
+        if not name or name not in activity_name_lookup:
+            print_warn(f"--activity-materials-json: 未找到名为 '{name}' 的活动节点，跳过")
+            continue
+        target_act = activity_name_lookup[name]
+        material = {
+            "activitymaterialguid": entry.get("activitymaterialguid") or gen_uuid(),
+            "processversionguid": process_version_guid,
+            "activityguid": target_act["activityguid"],
+            "materialguid": entry.get("materialguid") or material_guid,
+            "accessright": int(entry.get("accessright", 20)),
+            "is_mustsubmit": int(entry.get("is_mustsubmit", 20)),
+            "submittype": int(entry.get("submittype", 10)),
+        }
+        if entry.get("configdata"):
+            material["configdata"] = entry["configdata"]
+        if entry.get("controlvisiablemethodguid"):
+            material["controlvisiablemethodguid"] = entry["controlvisiablemethodguid"]
+
+        field_access_list = entry.get("fieldAccess") or entry.get("fieldaccess") or []
+        field_accesses = []
+        for fa in field_access_list:
+            if not isinstance(fa, dict):
+                continue
+            fa_item = {
+                "rowguid": fa.get("rowguid") or gen_uuid(),
+                "activitymaterialguid": material["activitymaterialguid"],
+                "processversionguid": process_version_guid,
+                "activityguid": target_act["activityguid"],
+                "materialguid": material["materialguid"],
+                "sqltablename": fa.get("sqltablename") or args.sql_tablename or "",
+                "fieldname": fa.get("fieldname", ""),
+                "fieldchinesename": fa.get("fieldchinesename", ""),
+                "accessright": int(fa.get("accessright", 20)),
+                "accesstype": int(fa.get("accesstype", 10)),
+            }
+            if fa.get("isallowattachwrite"):
+                fa_item["isallowattachwrite"] = fa["isallowattachwrite"]
+            field_accesses.append(fa_item)
+        if field_accesses:
+            material["workflowActivityFieldAccess"] = field_accesses
+
+        existing_materials = target_act.get("workflowActivityMaterial") or []
+        existing_materials.append(material)
+        target_act["workflowActivityMaterial"] = existing_materials
 
     # ============================================================
     # workflowConfig：每个退回按钮 1 条
@@ -779,7 +982,7 @@ def cli():
         "processversionguid": process_version_guid,
         "materialguid": material_guid,
         "tableguid": table_guid,
-        "tableid": args.table_id if args.table_id is not None else "",  # 数字类型，规范要求整数
+        # spec v2: tableid 已废弃，引擎根据 sql_tablename 自动绑定 mis 表
         "sql_tablename": args.sql_tablename or "",
     }]
 
@@ -819,14 +1022,14 @@ def cli():
         if not isinstance(raw_condition, dict):
             continue
         target_transition = None
-        raw_guid = raw_condition.get("transitionGuid") or raw_condition.get("transitionguid")
+        raw_guid = raw_condition.get("transitionguid") or raw_condition.get("transitionguid")
         if raw_guid:
             target_transition = transition_guid_lookup.get(raw_guid)
         if target_transition is None:
             raw_name = (
                 raw_condition.get("transition")
                 or raw_condition.get("transitionname")
-                or raw_condition.get("transitionName")
+                or raw_condition.get("transitionname")
                 or raw_condition.get("name")
             )
             if raw_name:
@@ -838,7 +1041,7 @@ def cli():
             elif 1 <= raw_index <= len(transitions):
                 target_transition = transitions[raw_index - 1]
         if target_transition is None:
-            print_err(f"--conditions-json 第 {i + 1} 条无法定位 transition，请提供 transitionGuid/transition/transitionIndex")
+            print_err(f"--conditions-json 第 {i + 1} 条无法定位 transition，请提供 transitionguid/transition/transitionIndex")
             return 1
         target_transition.setdefault("workflowTransitionCondition", []).append(
             _normalize_condition(raw_condition, process_version_guid, target_transition["transitionguid"], i)
@@ -876,7 +1079,7 @@ def cli():
         if isinstance(raw, dict)
     ]
     workflow_contexts = [
-        _normalize_context(raw, process_version_guid, material_guid, args.table_id, i)
+        _normalize_context(raw, process_version_guid, material_guid, args.sql_tablename or "", i)
         for i, raw in enumerate(contexts_raw)
         if isinstance(raw, dict)
     ]
@@ -899,7 +1102,7 @@ def cli():
                 "processguid": process_guid,
                 "processname": args.name,
                 "note": args.name,
-                "isvue": 0,
+                "isvue": 1,
                 "designversion": "senior",
                 "ordernum": 50,
                 "status": 10,
@@ -929,13 +1132,13 @@ def cli():
                     "createdate": now_str(),
                     "updatedate": now_str(),
                     "author": author_guid,
-                    "isShowLineGraph": "Normal",      # 'Normal'(直线) / 'Orthogonal'(折线)
-                    "isShowNodeSimple": "details",     # 'details'(详情) / 'simple'(精简)
-                    "revokeOption": args.revoke_option,                # 10/20/30/40
-                    "revokeAllowDay": args.revoke_allow_day,           # revokeOption=40 时填天数
-                    "revokeRemindOption": args.revoke_remind_option,   # 10(知会撤销) / 20(静默撤销)
-                    "noParticipatorOption": args.no_participator_option,  # 10/20/30
-                    "defaultUserGuid": args.default_user_guid or None,
+                    "isshowlinegraph": "Normal",      # 'Normal'(直线) / 'Orthogonal'(折线)
+                    "isshownodesimple": "details",     # 'details'(详情) / 'simple'(精简)
+                    "revokeoption": args.revoke_option,                # 10/20/30/40
+                    "revokeallowday": args.revoke_allow_day,           # revokeoption=40 时填天数
+                    "revokeremindoption": args.revoke_remind_option,   # 10(知会撤销) / 20(静默撤销)
+                    "noparticipatoroption": args.no_participator_option,  # 10/20/30
+                    "defaultuserguid": args.default_user_guid or None,
                 },
             },
         },
@@ -977,7 +1180,7 @@ def cli():
     if not args.form_id:
         print_info("  - 提示：未传 --form-id，材料 url 留空，需要后续在表单设计器中关联")
     if args.table_id is None:
-        print_info("  - 提示：未传 --table-id/--sql-tablename，workflowPvMisTableSet 字段留空，需后续填充")
+        print_info("  - 提示：未传 --sql-tablename，workflowPvMisTableSet 字段留空，需后续填充")
 
     # ============================================================
     # 生成后 5 条重点检查提示（与 SKILL.md / references/workflow/工作流/index.md 对齐）
@@ -988,7 +1191,7 @@ def cli():
                "workflowConfig/workflowPvMaterial/workflowPvMisTableSet/workflowProcessVersion 齐全")
     print_info("  [2] 节点必填项：每个 activity 含 guid/name/type/vmlid/iconx/icony；"
                "开始/结束/浏览节点的 handleurl(浏览除外)/multitransactormode/timelimitenable/"
-               "earlywarning_enable/isallowaddattachfile/isPassWhenNoTransactor 必须为 null")
+               "earlywarning_enable/isallowaddattachfile/is_passwhennotransactor 必须为 null")
     print_info("  [3] 关联关系闭合：processversionguid 全局一致 + transition.from/to 引用真实 activity + "
                "每个退回按钮配 1 条 workflowConfig + 材料↔表映射 1:1 + vmlid 唯一")
     print_info("  [4] 设计红线（重点：流转顺序）：5 类节点齐全；开始 ≠ 申请；"

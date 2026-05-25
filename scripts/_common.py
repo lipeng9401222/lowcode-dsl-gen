@@ -45,7 +45,7 @@ def find_workspace_root(start: Path) -> Optional[Path]:
     return None
 
 
-def compute_metadata_path(
+def compute_app_root(
     action_root: Path,
     apptag: str,
     *,
@@ -54,10 +54,13 @@ def compute_metadata_path(
     baseouguid: str = "",
     categories: Optional[list[str]] = None,
 ) -> Path:
-    """根据应用归属计算 metadata 目录绝对路径.
+    """根据应用归属计算应用根目录绝对路径（去掉 metadata 层）.
 
-    路径结构：<action_root>/src/main/resources/META-INF/resources/
-        <developerstag>/[<tenantguid>/][<baseouguid>/]<categories...>/<apptag>/metadata/
+    新结构：<action_root>/src/main/resources/META-INF/resources/
+        <developerstag>/[<tenantguid>/][<baseouguid>/]<categories...>/<apptag>/
+
+    应用资产直接挂在 <apptag>/ 下：codeitem/、mis/、module/、event/、
+    workflow/、pagedesigne/、appinfo.lowcode.yml、appref.lowcode.yml。
     """
     parts = [
         action_root,
@@ -71,8 +74,21 @@ def compute_metadata_path(
     if categories:
         parts.extend(categories)
     parts.append(apptag)
-    parts.append("metadata")
     return Path(*[str(p) for p in parts])
+
+
+def compute_metadata_path(*args, **kwargs) -> Path:
+    """[已废弃] 兼容老 API，等价于 compute_app_root.
+
+    新结构去掉了 metadata/ 层级；此函数返回与 compute_app_root 相同的路径。
+    """
+    import warnings
+    warnings.warn(
+        "compute_metadata_path 已废弃，请改用 compute_app_root（新结构去掉了 metadata/ 层）",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return compute_app_root(*args, **kwargs)
 
 
 EXCLUDE_DIRS = {"target", "build", "out", "dist", "node_modules", ".git", ".idea", ".vscode", ".history", "classes"}
@@ -88,29 +104,61 @@ def _is_in_excluded(path: Path, workspace_root: Path) -> bool:
 
 
 def find_existing_apptag(workspace_root: Path, apptag: str) -> Optional[Path]:
-    """在 workspace 中查找已存在的指定 apptag 的 metadata 目录.
+    """在 workspace 中查找已存在的指定 apptag 的应用根目录.
 
-    返回 metadata 目录路径（仅源码目录 src/main/resources 下），或 None.
-    自动排除 target/build/dist/node_modules 等编译产物目录.
+    新结构：`<...>/META-INF/resources/<...>/<apptag>/` 下直接含 codeitem/mis/...
+    老结构（向后兼容）：`<...>/META-INF/resources/<...>/<apptag>/metadata/<asset>/...`
+
+    返回应用根目录路径（不含 metadata/ 层）。如检测到老结构，会通过 print 给警告。
     """
     if not workspace_root or not workspace_root.is_dir():
         return None
-    # 限定在 src/main/resources/META-INF/resources/<...>/<apptag>/metadata 下
-    pattern = f"**/src/main/resources/META-INF/resources/**/{apptag}/metadata"
-    for candidate in workspace_root.glob(pattern):
+    import sys as _sys
+    KNOWN_ASSETS = {"codeitem", "mis", "module", "event", "workflow", "pagedesigne", "api"}
+
+    def _looks_like_app_root(path: Path) -> bool:
+        # 含 appinfo.lowcode.yml 或任意一个资产子目录
+        if (path / "appinfo.lowcode.yml").is_file():
+            return True
+        for asset in KNOWN_ASSETS:
+            if (path / asset).is_dir():
+                return True
+        return False
+
+    # 1) 优先扫新结构：<apptag>/ 下直接放资产
+    pattern_new = f"**/src/main/resources/META-INF/resources/**/{apptag}"
+    for candidate in workspace_root.glob(pattern_new):
         if not candidate.is_dir():
             continue
         if _is_in_excluded(candidate, workspace_root):
             continue
-        return candidate
-    # 兜底：放宽 src/main/resources 限制，仍然过滤 target
-    pattern2 = f"**/META-INF/resources/**/{apptag}/metadata"
-    for candidate in workspace_root.glob(pattern2):
+        if _looks_like_app_root(candidate):
+            return candidate
+
+    # 2) 兼容老结构：<apptag>/metadata/
+    pattern_old = f"**/src/main/resources/META-INF/resources/**/{apptag}/metadata"
+    for candidate in workspace_root.glob(pattern_old):
         if not candidate.is_dir():
             continue
         if _is_in_excluded(candidate, workspace_root):
             continue
-        return candidate
+        # 老结构：返回 <apptag>/ 而非 metadata/，并提示
+        legacy_app_root = candidate.parent
+        print(
+            f"⚠️ 检测到老结构应用根：{legacy_app_root}/metadata/。"
+            f"建议迁移到新结构（去掉 metadata 层），让资产直接挂在 {legacy_app_root}/ 下。",
+            file=_sys.stderr,
+        )
+        return legacy_app_root
+
+    # 3) 兜底：放宽 src/main/resources 限制
+    for candidate in workspace_root.glob(f"**/META-INF/resources/**/{apptag}"):
+        if not candidate.is_dir():
+            continue
+        if _is_in_excluded(candidate, workspace_root):
+            continue
+        if _looks_like_app_root(candidate):
+            return candidate
     return None
 
 

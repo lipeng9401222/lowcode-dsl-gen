@@ -1,18 +1,33 @@
 #!/usr/bin/env python3
 """add_event.py — 创建一个标准三段式动作流 yml 骨架.
 
+⚠️ 边界提示：标准 CRUD（list / detail / save / delete）不要走此脚本！
+   - 列表 / 详情 / 新增 / 修改 / 删除 → 走 MIS 接口或 REST 接口标准方法
+
+✅ 当前阶段 skill 默认只把"状态变更联动"作为主动建议生成 event 的场景：
+   - 状态变更联动（dispatch / approve / reject / archive / cancel / submit / revoke，
+     需同时改状态位、写日志、发消息）
+
+🟡 以下属于"高级场景"，仅当用户明确表达诉求时才考虑生成 event，不要主动建议：
+   - 跨系统推送拉取（push / pull / notify / sync）
+   - 定时同步（Cron）
+   - 工作流回调（method.ruleguid / workflowEvent.ruleGuid 引用）
+   - 多节点编排（含条件、迭代、代码节点）
+
 骨架包含 6 个节点：Webhook触发 → 初始化上下文 → 接口鉴权 → 业务方法 → 构建结果集 → 结束.
 
 用法：
     python add_event.py \\
-        --metadata /path/to/.../metadata \\
-        --name "获取采购立项列表" \\
-        --sign getDataGridModel \\
-        --apptag purchaseproject \\
-        --biz-action PurchaseProjectListRestService_getDataGridModel \\
-        --biz-title "获取列表分页数据" \\
-        --context-class com.epoint.ztb.rest.qy.tradeplan.purchaseproject.context.PurchaseProjectContext \\
-        --webhook-url "http://localhost:8080/EpointFrame/rest/dynamicapi/getDataGridModel"
+        --app-root /path/to/.../<apptag> \\
+        --name "调度车辆" \\
+        --sign dispatch \\
+        --apptag carapply \\
+        --biz-action CarApplyRestService_dispatch \\
+        --biz-title "调度车辆并更新状态" \\
+        --context-class com.epoint.ycsq.context.CarApplyContext \\
+        --webhook-url "http://localhost:8080/EpointFrame/rest/dynamicapi/dispatch"
+
+兼容：--metadata 旧参数仍可用，等价于 --app-root（输出 deprecation warn）。
 """
 from __future__ import annotations
 
@@ -30,6 +45,7 @@ from _common import (  # noqa: E402
     print_err,
     print_info,
     print_ok,
+    print_warn,
     render_template,
     safe_filename,
 )
@@ -37,7 +53,8 @@ from _common import (  # noqa: E402
 
 def cli():
     parser = argparse.ArgumentParser(description="创建标准三段式动作流 yml")
-    parser.add_argument("--metadata", required=True, help="metadata 目录路径")
+    parser.add_argument("--app-root", "--metadata", dest="app_root", required=True,
+                        help="应用根目录路径（<apptag>/）。--metadata 是旧别名")
     parser.add_argument("--name", required=True, help="动作流名称（中文）")
     parser.add_argument("--sign", required=True, help="接口标识（与 controller 方法名一致）")
     parser.add_argument("--apptag", required=True, help="应用标识")
@@ -65,12 +82,15 @@ def cli():
     parser.add_argument("--force", action="store_true", help="覆盖已存在文件")
     args = parser.parse_args()
 
-    metadata_dir = Path(args.metadata).resolve()
-    if not metadata_dir.is_dir():
-        print_err(f"metadata 目录不存在: {metadata_dir}")
+    if "--metadata" in sys.argv:
+        print_warn("--metadata 已废弃，建议改用 --app-root（功能相同，下版本将移除）")
+
+    app_root = Path(args.app_root).resolve()
+    if not app_root.is_dir():
+        print_err(f"应用根目录不存在: {app_root}")
         return 1
 
-    event_dir = metadata_dir / "event"
+    event_dir = app_root / "event"
     event_dir.mkdir(parents=True, exist_ok=True)
 
     # 文件名

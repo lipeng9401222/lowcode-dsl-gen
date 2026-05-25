@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""add_codeitem.py — 在指定 metadata 目录追加一个代码项 yml.
+"""add_codeitem.py — 在指定应用根目录追加一个代码项 yml.
 
 用法：
     # 简单：从命令行参数提供 items
     python add_codeitem.py \\
-        --metadata /path/to/.../metadata \\
+        --app-root /path/to/.../<apptag> \\
         --name 审核状态 \\
         --description "审核状态字典" \\
         --items "草稿:0:5,待审核:1:2,审核通过:2:3"
 
     # 复杂：从 JSON 字符串提供 items（支持完整字段）
     python add_codeitem.py \\
-        --metadata /path/to/.../metadata \\
+        --app-root /path/to/.../<apptag> \\
         --name 审核状态 \\
         --description "审核状态字典" \\
         --items-json '[
@@ -23,6 +23,8 @@
     python add_codeitem.py \\
         --file /path/to/审核状态.codeitem.yml \\
         --append-items "审核驳回:3:4"
+
+兼容：--metadata 旧参数仍可用，等价于 --app-root（输出 deprecation warn）。
 """
 from __future__ import annotations
 
@@ -88,7 +90,8 @@ def cli():
     parser = argparse.ArgumentParser(description="新建/修改代码项 yml")
 
     # 模式 1：新建
-    parser.add_argument("--metadata", help="metadata 目录绝对路径（新建时必填）")
+    parser.add_argument("--app-root", "--metadata", dest="app_root",
+                        help="应用根目录路径（<apptag>/）。--metadata 是旧别名，仍可用")
     parser.add_argument("--name", help="代码项名称（中文，作为 yml 内 name 字段，也是文件名）")
     parser.add_argument("--description", default="", help="代码项描述")
 
@@ -165,16 +168,19 @@ def cli():
         return 0
 
     # 新建模式
-    if not args.metadata or not args.name:
-        print_err("新建模式必须提供 --metadata 和 --name")
+    if not args.app_root or not args.name:
+        print_err("新建模式必须提供 --app-root 和 --name")
         return 1
 
-    metadata_dir = Path(args.metadata).resolve()
-    if not metadata_dir.is_dir():
-        print_err(f"metadata 目录不存在: {metadata_dir}")
+    if "--metadata" in sys.argv:
+        print_warn("--metadata 已废弃，建议改用 --app-root（功能相同，下版本将移除）")
+
+    app_root = Path(args.app_root).resolve()
+    if not app_root.is_dir():
+        print_err(f"应用根目录不存在: {app_root}")
         return 1
 
-    codeitem_dir = metadata_dir / "codeitem"
+    codeitem_dir = app_root / "codeitem"
     codeitem_dir.mkdir(parents=True, exist_ok=True)
 
     ext = ".yml" if args.single_ext else ".codeitem.yml"

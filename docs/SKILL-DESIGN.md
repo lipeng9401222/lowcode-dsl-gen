@@ -11,13 +11,13 @@
 
 ## 1. 设计目标
 
-把"自然语言需求 / PRD / 会议纪要"翻译成一套合规、可校验、可加载的 Epoint 低代码 metadata 资产
-(`META-INF/resources/.../metadata/` 下的 8 类 YAML)。
+把"自然语言需求 / PRD / 会议纪要"翻译成一套合规、可校验、可加载的 Epoint 低代码应用资产
+(`META-INF/resources/.../` 下的 8 类 YAML)。
 
 核心约束:
 
 1. **不靠 LLM 凭直觉造字段**——所有字段都有白名单,LLM 只做"映射 + 装配",不做"发明"。
-2. **不绕过用户批准**——批准前一行 metadata 都不写。
+2. **不绕过用户批准**——批准前一行应用资产都不写。
 3. **跨 IDE / CLI 通用**——Codex / Claude Code / Windsurf / Cursor / Cline / Trae / Kiro 等宿主上行为一致。
 4. **可机器校验**——所有产物落盘后必须能被 `validate_yml.py` 静态扫描通过(0 errors)。
 
@@ -52,7 +52,7 @@
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  ④ 装配层(scripts/)                                                    │
-│  · path_resolver.py:apptag → metadata 绝对路径                         │
+│  · path_resolver.py:apptag → 应用根目录绝对路径                         │
 │  · scaffold_app.py / add_*.py:7 个资产装配脚本                         │
 │  · _common.py:共享工具(parse_json_arg / UUIDv4 / 模板渲染等)          │
 │  · 模板:assets/templates/<type>.yml 提供占位符骨架                     │
@@ -67,7 +67,7 @@
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  ⑥ 落盘                                                                  │
-│  metadata/<appinfo|appref|codeitem|mis|module|event|workflow|pagedesigne>│
+│  <apptag>/<appinfo|appref|codeitem|mis|module|event|workflow|pagedesigne>│
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -126,7 +126,7 @@ flowchart TD
 | 模式 | 触发信号 | 第一步读哪个 references | 典型对话起点 |
 |------|---------|------------------------|------------|
 | **A 从零创建** | "新建 / 创建一个应用",且工程里没有对应 apptag 目录 | `directory-structure.md` + `appinfo/应用配置/index.md` | 问应用标识、开发商标识、应用中文名 |
-| **B 修改/补充** | 已存在 apptag,要在已有 metadata 里追加 | `00` + 对应 `<asset>/<中文目录>/index.md` | 先 `inventory_metadata.py` 列资产清单 |
+| **B 修改/补充** | 已存在 apptag,要在已有应用根目录里追加 | `00` + 对应 `<asset>/<中文目录>/index.md` | 先 `inventory_metadata.py` 列资产清单 |
 | **C 资产级快速** | "加一个代码项 / 动作流 / 数据表..." 且能从语境识别 apptag | 对应 `<asset>/<中文目录>/index.md` | 跳过应用层问询,直接进资产层 |
 | **D 整应用生成** | 用户给 PRD / 会议纪要 / 自然语言描述完整应用 | `whole-app-workflow.md` | 走 8 阶段全流程 |
 
@@ -158,9 +158,9 @@ flowchart TD
                           │   pending_stages / next_question
                           │   approval_status(默认 pending)
                           │   approval_text(默认空)
-                          │   metadata 目录 / 资产清单 / 脚本命令 / 校验命令
+                          │   应用根目录 / 资产清单 / 脚本命令 / 校验命令
                           ▼
- 用户明确批准 ──→ approval_status=approved + 记录原文 ──→ 解锁 metadata 写入 + 脚本调用
+ 用户明确批准 ──→ approval_status=approved + 记录原文 ──→ 解锁应用资产写入 + 脚本调用
 ```
 
 **批准 = 用户明确语义**("批准创建 / 按计划生成 / 可以落盘")。
@@ -172,16 +172,16 @@ flowchart TD
 
 ## 4. 资产类型与脚本对应表
 
-| 资产 | metadata 子目录 | 第一行 type | 主脚本 | references 入口 | 模板 |
+| 资产 | 资产子目录 | 第一行 type | 主脚本 | references 入口 | 模板 |
 |------|---------------|-----------|--------|----------|------|
-| appinfo | `metadata/` | (无) | `scaffold_app.py` | `appinfo/应用配置/index.md` | `appinfo.lowcode.yml` |
-| appref | `metadata/` | (无) | `scaffold_app.py` | `appref/引用配置/index.md` | `appref.lowcode.yml` |
-| codeitem | `metadata/codeitem/` | `codeitem` | `add_codeitem.py` | `codeitem/代码项/index.md` | `codeitem.yml` |
-| mis | `metadata/mis/` | `mis` | `add_mis_field.py` | `mis/数据模型/index.md` | `mis.yml` |
-| module | `metadata/module/` | `module` | `add_module.py` | `module/模块/index.md` | `module.yml` |
-| event(动作流) | `metadata/event/` | `event` | `add_event.py` | `event/动作流/index.md` + 子目录 | `event.yml` |
-| workflow(审批流) | `metadata/workflow/` | `workflow` | `add_workflow.py` | `workflow/工作流/index.md` + 子目录 | `workflow.yml` |
-| pagedesigne | `metadata/pagedesigne/` | yml（内容仍为 JSON 文本） | `add_pagedesigne.py` | `pagedesigne/页面设计器/index.md` + 子目录 | `pagedesigne.yml` |
+| appinfo | `<apptag>/` | (无) | `scaffold_app.py` | `appinfo/应用配置/index.md` | `appinfo.lowcode.yml` |
+| appref | `<apptag>/` | (无) | `scaffold_app.py` | `appref/引用配置/index.md` | `appref.lowcode.yml` |
+| codeitem | `codeitem/` | `codeitem` | `add_codeitem.py` | `codeitem/代码项/index.md` | `codeitem.yml` |
+| mis | `mis/` | `mis` | `add_mis_field.py` | `mis/数据模型/index.md` | `mis.yml` |
+| module | `module/` | `module` | `add_module.py` | `module/模块/index.md` | `module.yml` |
+| event(动作流) | `event/` | `event` | `add_event.py` | `event/动作流/index.md` + 子目录 | `event.yml` |
+| workflow(审批流) | `workflow/` | `workflow` | `add_workflow.py` | `workflow/工作流/index.md` + 子目录 | `workflow.yml` |
+| pagedesigne | `pagedesigne/` | yml（内容仍为 JSON 文本） | `add_pagedesigne.py` | `pagedesigne/页面设计器/index.md` + 子目录 | `pagedesigne.yml` |
 
 > 工作流自身是**最复杂**的资产:5 类节点 + 9 个核心子表(activity / transition / workflowConfig / workflowPvMaterial / workflowPvMisTableSet / method / workflowEvent / workflowContext / workflowProcessVersion)。
 
@@ -246,7 +246,7 @@ flowchart TD
 │  validate_yml.py(主校验器)                               │
 ├────────────────────────────────────────────────────────────┤
 │  · 单文件:python validate_yml.py <file>                    │
-│  · 整应用:python validate_yml.py --strict --check-refs <metadata> │
+│  · 整应用:python validate_yml.py --strict --check-refs <app-root> │
 │                                                              │
 │  校验项分类:                                                  │
 │  ① 结构层    type 标识、顶层包装、必有子节点                 │
@@ -267,7 +267,7 @@ flowchart TD
 ┌────────────────────────────────────────────────────────────┐
 │  inventory_metadata.py(资产盘点)                          │
 ├────────────────────────────────────────────────────────────┤
-│  · 列出 metadata 下所有 yml/json                            │
+│  · 列出应用根下所有 yml/json                            │
 │  · 标注 type / 文件名 / 关键标识                             │
 │  · 用于"修改 B 模式"的清单展示                               │
 └────────────────────────────────────────────────────────────┘
@@ -289,7 +289,7 @@ flowchart TD
 2. **模板**:写 `assets/templates/report.yml`,用 `{{PLACEHOLDER}}` 占位
 3. **装配脚本**:写 `scripts/add_report.py`,套用 `add_module.py` 模式:
    - 用 `_common.parse_json_arg` 解析 `--xxx-json` 入参
-   - 用 `path_resolver.py` 算 metadata 绝对路径
+   - 用 `path_resolver.py` 算应用根目录绝对路径
    - 用 UUIDv4 生成 GUID
    - 写盘前校验关键信息齐全(缺信息 → fail-fast,除非 `--allow-empty`)
 4. **校验扩展**:在 `validate_yml.py` 加 `_validate_report(...)` 函数,处理 `type: report` 文件
@@ -351,7 +351,7 @@ flowchart TD
 - **状态机型工作流**(含 `statemachinetag` / `statusid`):复杂,建议线上设计器画
 - **加办 / 抄送 / 送阅读** 等高级流程操作:手写难度大
 - **流程脚本 / 外部方法 Java 实现**:属高码资产,参考 `epoint-framework-dev`
-- **Vue 流程**(`isvue=1`):本 skill 默认 `isvue=0`,Vue 流程用线上设计器
+- **非 Vue 流程**(`isvue=0`):本 skill 默认生成 Vue 流程(`isvue=1`),非 Vue 流程仅作兼容支持,不再默认生成
 - **复杂条件分支**(多条件 + 嵌套):简单单条件可手写 `workflowTransitionCondition`,复杂的用线上设计器
 - **`workflowActivityMaterial` / `workflowActivityFieldAccess`**:规范文档列出但字段定义"待补充",当前不生成
 
@@ -389,7 +389,7 @@ lowcode-dsl-gen/
 │   └── pagedesigne/页面设计器/           ← index.md + Schema 字段速查.md + 视图模型速查.md + 设计器 Schema 规范定义/(01~08 + 示例/)
 ├── scripts/                              ← 装配 + 校验工具
 │   ├── _common.py                        ← 共享:parse_json_arg / UUIDv4 / 模板渲染
-│   ├── path_resolver.py                  ← apptag → metadata 绝对路径
+│   ├── path_resolver.py                  ← apptag → 应用根目录绝对路径
 │   ├── scaffold_app.py                   ← 新建应用骨架
 │   ├── add_codeitem.py
 │   ├── add_mis_field.py
@@ -433,7 +433,7 @@ lowcode-dsl-gen/
 6. 同步更新 `SKILL-DESIGN.md`(本文档)
 
 每次发布前:
-- 跑 `python scripts/validate_yml.py --strict --check-refs <一组测试 metadata>`
+- 跑 `python scripts/validate_yml.py --strict --check-refs <一组测试应用根目录>`
 - 跑 `evals/` 下样本回归
 - 更新 `SKILL.md` frontmatter 的 `metadata.version`
 

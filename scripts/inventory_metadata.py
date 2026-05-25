@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""inventory_metadata.py — 列出低代码应用 metadata 目录内的资产清单."""
+"""inventory_metadata.py — 列出低代码应用资产清单（应用根目录下，新结构去掉 metadata 层）.
+
+兼容老结构：若传入路径下直接有 codeitem/mis/... 子目录，按新结构处理；
+若传入路径形如 `<apptag>/metadata/`，也能识别（向后兼容）。
+"""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _common import json_load, print_err, yaml_load  # noqa: E402
+from _common import json_load, print_err, print_warn, yaml_load  # noqa: E402
 
 
 ASSET_DIRS = ["codeitem", "mis", "module", "event", "api", "workflow", "pagedesigne"]
@@ -62,14 +66,14 @@ def summarize_file(asset_type: str, path: Path) -> dict:
     return item
 
 
-def inventory(metadata_dir: Path) -> dict:
+def inventory(app_root: Path) -> dict:
     result = {
-        "metadata": str(metadata_dir),
-        "appinfo": str(metadata_dir / "appinfo.lowcode.yml") if (metadata_dir / "appinfo.lowcode.yml").is_file() else None,
+        "appRoot": str(app_root),
+        "appinfo": str(app_root / "appinfo.lowcode.yml") if (app_root / "appinfo.lowcode.yml").is_file() else None,
         "assets": {asset_type: [] for asset_type in ASSET_DIRS},
     }
     for asset_type in ASSET_DIRS:
-        asset_dir = metadata_dir / asset_type
+        asset_dir = app_root / asset_type
         if not asset_dir.is_dir():
             continue
         patterns = ["*.yml", "*.yaml", "*.json"] if asset_type == "pagedesigne" else ["*.yml", "*.yaml"]
@@ -80,7 +84,7 @@ def inventory(metadata_dir: Path) -> dict:
 
 
 def print_text(data: dict) -> None:
-    print(f"metadata: {data['metadata']}")
+    print(f"appRoot: {data['appRoot']}")
     print(f"appinfo: {data['appinfo'] or '缺失'}")
     for asset_type in ASSET_DIRS:
         items = data["assets"][asset_type]
@@ -97,16 +101,26 @@ def print_text(data: dict) -> None:
 
 
 def cli():
-    parser = argparse.ArgumentParser(description="列出 metadata 资产清单")
-    parser.add_argument("--metadata", required=True, help="metadata 目录路径")
+    parser = argparse.ArgumentParser(description="列出应用资产清单（新结构去掉 metadata 层）")
+    parser.add_argument("--app-root", "--metadata", dest="app_root", required=True,
+                        help="应用根目录路径（<apptag>/）。--metadata 是旧别名")
     parser.add_argument("--json", action="store_true", help="输出 JSON")
     args = parser.parse_args()
 
-    metadata_dir = Path(args.metadata).resolve()
-    if not metadata_dir.is_dir():
-        print_err(f"metadata 目录不存在: {metadata_dir}")
+    if "--metadata" in sys.argv:
+        print_warn("--metadata 已废弃，建议改用 --app-root（功能相同，下版本将移除）")
+
+    app_root = Path(args.app_root).resolve()
+    if not app_root.is_dir():
+        print_err(f"应用根目录不存在: {app_root}")
         return 1
-    data = inventory(metadata_dir)
+    # 兼容老结构：若传入路径自身名字是 metadata 且其内部含 codeitem/mis/...，给提示但仍按它处理
+    if app_root.name == "metadata":
+        print_warn(
+            f"检测到老结构路径 {app_root}（结尾是 metadata/）。新结构已去掉 metadata 层，"
+            "建议传入 <apptag>/ 而非 <apptag>/metadata/。本次按老结构兼容处理。"
+        )
+    data = inventory(app_root)
     if args.json:
         print(json.dumps(data, ensure_ascii=False, indent=2))
     else:

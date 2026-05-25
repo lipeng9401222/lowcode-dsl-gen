@@ -6,6 +6,7 @@
 
 ```json
 {
+  "pagetag": "employee_form",
   "schemaVersion": "core-1.0",
   "kind": "page",
   "id": "employee-page",
@@ -33,9 +34,10 @@
 
 ## 字段
 
+- `pagetag`：页面运行时标识，**必填，应用内唯一**（同一 `<apptag>/pagedesigne/` 下不能重复）。全小写英文 + 数字 + 下划线，建议形如 `<业务>_<form/list/detail>`。被 workflow 的 `handleurl` 引用：`home/vuepagedesigner/renderer/add?pagetag=<pagetag>`。
 - `schemaVersion`：协议版本，固定为 `core-1.0`。
 - `kind`：Schema 类型，当前固定为 `page`。
-- `id`：页面稳定标识。AI 可省略，由 normalizer 生成。
+- `id`：页面稳定标识。AI 可省略，由 normalizer 生成。与 `pagetag` 解耦：`id` 用于设计器节点引用，`pagetag` 用于运行时路由。
 - `title`：页面标题。
 - `viewport`：设计器画布配置，服务小屏、PC、平板、嵌入式画布等场景。
 - `theme`：页面级默认视觉变量。

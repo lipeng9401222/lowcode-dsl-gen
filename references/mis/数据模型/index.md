@@ -4,7 +4,7 @@
 
 `mis` 是低代码体系里的"**数据表 + 数据模型**"二合一描述：既描述底层 SQL 表结构，又描述对应模型的字段元信息（用于表单渲染、列表渲染、查询条件等）。
 
-- 与 metadata 目录的对应关系：`metadata/<apptag>/mis/<表名>.mis.yml`（历史 `<表名>.yml` 仅兼容读取）
+- 与 应用根目录的对应关系：`<apptag>/mis/<表名>.mis.yml`（历史 `<表名>.yml` 仅兼容读取）
 - 不在本资产范围内的事：
   - 字典枚举值的定义属于 `codeitem`，详见 `references/codeitem/代码项/index.md`
   - 业务流程审批属于 `workflow`（通过 `tableid` 反向引用 mis 表），详见 `references/workflow/工作流/index.md`
@@ -33,7 +33,7 @@
   - `workflow` 的 `workflowPvMisTableSet.tableid` 反向关联 mis 表
   - `event`/`pagedesigne` 通过 `tableid` 或表名引用 mis（数据源/表单）
   - 跨应用引用通过 `appref` 的 `engineguid: mis` 暴露
-- 跨资产校验脚本：`scripts/validate_yml.py --check-refs <metadata>`
+- 跨资产校验脚本：`scripts/validate_yml.py --check-refs <app-root>`
 
 ---
 
@@ -42,7 +42,7 @@
 ## 文件位置与命名
 
 ```
-<metadata>/mis/<表名>.mis.yml
+<app-root>/mis/<表名>.mis.yml
 ```
 
 - 文件名必须使用**英文表名**（如 `customerinfo.mis.yml`），英文表名小写英文数字且不能有下划线
@@ -313,7 +313,7 @@ relations:
 ```
 我准备把这张数据表写入 `.lowcode-plans/<apptag>-plan.md` 并先等你确认：
 
-- 路径：<metadata>/mis/customerinfo.mis.yml
+- 路径：<app-root>/mis/customerinfo.mis.yml
 - 字段：
   - customer_name (nvarchar 50, 必填)
   - customer_mobile (nvarchar 50, 唯一)
@@ -429,7 +429,7 @@ relations:
 ```bash
 # 创建空 mis 表
 python scripts/add_mis_field.py \
-  --metadata <metadata 路径> \
+  --app-root <app-root> \
   --table customerinfo \
   --table-desc "客户信息表" \
   --create

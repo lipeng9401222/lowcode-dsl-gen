@@ -5,7 +5,52 @@
 ## 1. 资产定位与边界
 
 - **本资产解决**：`event` 用于描述**接口业务编排**——把"接收 Webhook 请求 → 初始化上下文 → 接口鉴权 → 业务执行 → 构建结果集 → 返回响应"等步骤拼成一个流程图（DAG）。每个 event yml 对应**一个 REST 接口**的完整业务编排。
-- **与 metadata 目录的对应关系**：`metadata/<apptag>/event/<动作流标识>.event.yml`（历史 `<标识>.yml` 仅兼容读取）
+- **与应用目录的对应关系**：`<apptag>/event/<动作流标识>.event.yml`（历史 `<标识>.yml` 仅兼容读取）
+
+### ✅ 何时需要动作流 / ❌ 何时不要动作流
+
+> **重要边界（避免主动建议生成无意义的 event）**：
+>
+> 动作流是"编排型"业务逻辑的载体。**纯粹的标准 CRUD（列表、详情、新增、修改、删除）一律不要走 event**——这些场景由 MIS 接口或 REST 接口直接提供，前端直连业务 controller 即可。
+
+#### ❌ 不要生成动作流的场景
+
+| 场景 | 为什么不需要 | 应该用什么 |
+|------|------------|----------|
+| 列表查询（`getDataGridModel` / `list` / `query` / `find` / `fetch` / `search`） | 标准列表接口由 MIS 表 + REST 自动提供 | MIS 接口 / `XxxRestService` 标准方法 |
+| 详情查询（`getDetail` / `getById`） | 单表详情属于标准读 | 同上 |
+| 新增 / 修改（`saveOrUpdate` / `create` / `update`） | 单表写入由 MIS 接口提供 | 同上 |
+| 删除（`delete` / `remove`） | 单表删除属于标准写 | 同上 |
+| 简单字段映射、单表读写无副作用 | 走 event 反而多一层冗余 | MIS 接口 / REST 直连 |
+
+#### ✅ 主动建议生成动作流的场景（当前阶段唯一一类）
+
+| 场景 | 业务特征 | 典型方法名 |
+|------|---------|----------|
+| **状态变更联动** | 同时改状态位 + 写日志 + 发消息中心 + 触发后续业务 | `dispatch` / `approve` / `reject` / `archive` / `cancel` / `submit` / `revoke` |
+
+> **当前阶段的边界**：skill 默认**只把"状态变更联动"作为主动建议生成 event 的场景**。其他类型的编排（见下方"高级场景"）不要主动提出，必须等用户明确说出诉求后再考虑。
+
+#### 🟡 高级场景（用户明确要求才考虑，不主动建议）
+
+以下场景平台层面是支持的，但 skill **不要主动建议**生成 event；只有在用户明确表达诉求（如"用动作流推一下""定时同步""工作流回调挂动作流"）后才进入 event 阶段，并提示用户这是高级用法：
+
+| 场景 | 触发关键词 |
+|------|----------|
+| 跨系统推送/拉取（调外部接口、发 webhook） | 用户主动说"推送给 / 拉取自 / 同步到 外部" |
+| 定时同步（Cron、批量处理） | 用户主动说"定时 / 每天几点 / 周期性" |
+| 工作流回调（`method.ruleguid` / `workflowEvent.ruleGuid` / `workflowTransitionCondition.ruleGuid`） | 用户主动说"工作流里挂动作流 / 流转条件用动作流" |
+| 多节点编排（条件分支、迭代、代码节点） | 用户主动说"接口里要分支 / 循环 / 写脚本" |
+
+#### 命名暗示规则
+
+skill 收到接口需求时按命名前缀给出默认建议：
+
+- 方法名匹配 `^(get|list|query|find|fetch|search|save|create|update|delete|remove)` → **默认走标准接口**，不要主动建议生成 event。
+- 方法名匹配 `^(dispatch|approve|reject|archive|cancel|submit|revoke)` 或显式带"状态变更联动"语义 → **才主动建议生成 event**。
+- 其他匹配 `^(sync|push|pull|notify|callback|on[A-Z])` 等模式 → 属于"高级场景"，**不主动建议**；用户明确要求时再考虑。
+
+> 边界冲突时（如用户明确要求"列表也走动作流"），按用户明确意图执行，但要在生成计划里标注"非常规用法"并解释成本。
 
 ### 不在本 skill 范围内的事
 
@@ -17,7 +62,7 @@
 ### 文件位置与命名
 
 ```
-<metadata>/event/<功能名/接口名>.event.yml
+<apptag>/event/<功能名/接口名>.event.yml
 ```
 
 推荐命名：
@@ -125,7 +170,7 @@
 
 ```bash
 python scripts/add_event.py \
-  --metadata <metadata 路径> \
+  --app-root <app-root> \
   --name "获取采购立项列表" \
   --sign getDataGridModel \
   --apptag purchaseproject \
@@ -138,7 +183,7 @@ python scripts/add_event.py \
 #### DSL 校验
 
 ```bash
-python scripts/check_dsl.py <metadata 路径>/event/<动作流名>.event.yml
+python scripts/check_dsl.py <app-root>/event/<动作流名>.event.yml
 ```
 
 #### DSL 校验脚本 🆕
@@ -148,7 +193,7 @@ python scripts/check_dsl.py <metadata 路径>/event/<动作流名>.event.yml
 #### 通用校验
 
 ```bash
-python scripts/validate_yml.py --check-refs <metadata 路径>
+python scripts/validate_yml.py --check-refs <app-root>
 ```
 
 ### 修改已有动作流场景速查

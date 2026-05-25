@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""path_resolver.py — 给定 apptag 或路径，定位/计算 metadata 目录绝对路径.
+"""path_resolver.py — 给定 apptag 或路径，定位/计算应用根目录绝对路径.
+
+新结构：应用根目录 = `<...>/META-INF/resources/<...>/<apptag>/`，
+应用资产（codeitem/mis/module/event/workflow/pagedesigne/api）直接挂在
+应用根下，**不再有 metadata/ 这一层**。老结构 `<apptag>/metadata/` 仅作向后兼容读取。
 
 用法：
-    # 1) 基于 apptag 在 workspace 中查找已存在的 metadata 目录
+    # 1) 基于 apptag 在 workspace 中查找已存在的应用根目录
     python path_resolver.py --apptag xmlx --workspace /path/to/epoint-ipd-parent
 
-    # 2) 计算新应用的 metadata 目录路径（不一定存在）
+    # 2) 计算新应用的应用根路径（不一定存在）
     python path_resolver.py --apptag purchaseproject \\
         --action-root /path/to/xxx-action \\
         --developerstag epoint \\
@@ -25,7 +29,7 @@ from pathlib import Path
 # 允许直接 python path_resolver.py 调用
 sys.path.insert(0, str(Path(__file__).parent))
 from _common import (  # noqa: E402
-    compute_metadata_path,
+    compute_app_root,
     find_action_root,
     find_existing_apptag,
     find_workspace_root,
@@ -37,7 +41,7 @@ from _common import (  # noqa: E402
 
 
 def cli():
-    parser = argparse.ArgumentParser(description="解析/计算 metadata 目录路径")
+    parser = argparse.ArgumentParser(description="解析/计算应用根目录路径（新结构去掉 metadata/ 层）")
     parser.add_argument("--apptag", help="应用标识")
     parser.add_argument("--workspace", help="工作区根目录（默认从 cwd 向上找 .git 根）")
     parser.add_argument(
@@ -94,7 +98,7 @@ def cli():
             print(existing)
             return 0
         if args.mode == "find":
-            print_err(f"未找到 apptag={args.apptag} 的现有 metadata 目录")
+            print_err(f"未找到 apptag={args.apptag} 的现有应用根目录")
             return 1
 
     # 计算新路径
@@ -118,7 +122,7 @@ def cli():
         action_root = Path(args.action_root).resolve()
 
     categories = [c.strip() for c in args.categories.split(",") if c.strip()]
-    metadata_path = compute_metadata_path(
+    app_root = compute_app_root(
         action_root,
         args.apptag,
         developerstag=args.developerstag,
@@ -126,9 +130,9 @@ def cli():
         baseouguid=args.baseouguid,
         categories=categories,
     )
-    exists = metadata_path.is_dir()
+    exists = app_root.is_dir()
     print_info(f"计算路径（{'已存在' if exists else '不存在'}）：")
-    print(metadata_path)
+    print(app_root)
     return 0
 
 

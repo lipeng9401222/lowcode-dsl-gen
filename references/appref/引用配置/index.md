@@ -4,12 +4,12 @@
 
 - 本资产解决：声明本应用引用了**其他应用**的资产（代码项、数据表、模块、动作流、工作流、页面），让多个应用之间可以**共享**这些资产。
 - 不在本资产范围内的事：资产本身的定义与生成（由各自的 codeitem/mis/module/workflow/event/pagedesigne 资产负责）。
-- 与 metadata 目录的对应关系：`metadata/<apptag>/appref.lowcode.yml`
+- 与 应用根目录的对应关系：`<apptag>/appref.lowcode.yml`
 
 ### 文件位置
 
 ```
-<metadata>/appref.lowcode.yml
+<app-root>/appref.lowcode.yml
 ```
 
 可选文件，没有引用关系时不需要。
@@ -153,7 +153,7 @@ refs:
 | `name` 中每个值是非空字符串 | 元素校验 |
 | 引用的资产实际存在（高级校验） | 解析 sourceAppTag 应用，查找资产 |
 
-> 高级校验需要扫描整个工程，调用 `python scripts/validate_yml.py --check-refs <metadata 路径>`。
+> 高级校验需要扫描整个工程，调用 `python scripts/validate_yml.py --check-refs <app-root>`。
 
 ### 常见错误
 

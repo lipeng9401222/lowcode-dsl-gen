@@ -4,7 +4,7 @@
 用法：
     # 1) 创建新 mis 表（默认含 rowguid 主键字段）
     python add_mis_field.py \\
-        --metadata /path/to/.../metadata \\
+        --app-root /path/to/.../<apptag> \\
         --table customerinfo --create \\
         --table-desc "客户信息表"
 
@@ -21,6 +21,8 @@
             {"name": "customer_phone", "type": "nvarchar", "length": 50, "description": "客户电话"},
             {"name": "customer_email", "type": "nvarchar", "length": 100, "description": "邮箱"}
         ]'
+
+兼容：--metadata 旧参数仍可用，等价于 --app-root（输出 deprecation warn）。
 """
 from __future__ import annotations
 
@@ -149,7 +151,8 @@ def cli():
     parser = argparse.ArgumentParser(description="创建/修改 MIS 表 yml")
 
     # 模式 1：创建
-    parser.add_argument("--metadata", help="metadata 目录路径（创建模式必填）")
+    parser.add_argument("--app-root", "--metadata", dest="app_root",
+                        help="应用根目录路径（<apptag>/，创建模式必填）。--metadata 是旧别名")
     parser.add_argument("--table", help="表名（小写英文数字、无下划线，如 customerinfo）")
     parser.add_argument("--table-desc", default="", help="表描述")
     parser.add_argument(
@@ -202,19 +205,21 @@ def cli():
 
     # === 创建模式 ===
     if args.create:
-        if not args.metadata or not args.table:
-            print_err("创建模式必须提供 --metadata 和 --table")
+        if not args.app_root or not args.table:
+            print_err("创建模式必须提供 --app-root 和 --table")
             return 1
+        if "--metadata" in sys.argv:
+            print_warn("--metadata 已废弃，建议改用 --app-root（功能相同，下版本将移除）")
         if not is_valid_mis_name(args.table):
             print_err(f"表名非法: {args.table}（应小写英文数字，且不能包含下划线）")
             return 1
 
-        metadata_dir = Path(args.metadata).resolve()
-        if not metadata_dir.is_dir():
-            print_err(f"metadata 目录不存在: {metadata_dir}")
+        app_root = Path(args.app_root).resolve()
+        if not app_root.is_dir():
+            print_err(f"应用根目录不存在: {app_root}")
             return 1
 
-        mis_dir = metadata_dir / "mis"
+        mis_dir = app_root / "mis"
         mis_dir.mkdir(parents=True, exist_ok=True)
 
         ext = ".yml" if args.single_ext else ".mis.yml"

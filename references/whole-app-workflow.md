@@ -29,17 +29,32 @@
 - 每一步只读取当前需要的参考文档，避免一次性加载所有 references。
 - 生成计划必须写入 `.lowcode-plans/<apptag>-plan.md`，覆盖将新增/修改的应用、资产类型、目标文件、脚本命令和校验方式，并清楚列出当前阶段、已确认阶段、待确认阶段和下一步只问什么。
 - 用户明确说“批准创建 / 按计划生成 / 可以落盘”后，才调用脚本或写文件。
-- 每个资产生成后立即校验；整批完成后再对 metadata 目录执行 `validate_yml.py --check-refs`。
+- 每个资产生成后立即校验；整批完成后再对应用根目录执行 `validate_yml.py --check-refs`。
+
+> **event 阶段的边界（重要）**：用户提到列表 / 详情 / 新增 / 修改 / 删除时**不要主动建议生成动作流**——这些标准 CRUD 走 MIS 接口或 REST 接口直接提供。
+>
+> 当前阶段 skill **只把"状态变更联动"作为主动建议进入 event 阶段的场景**：
+>
+> - **状态变更联动**（dispatch / approve / reject / archive / cancel / submit / revoke，需同时改状态位、写日志、发消息）
+>
+> 以下场景属于"高级场景"，**仅当用户明确表达诉求时**才进入 event 阶段，不要主动建议：
+>
+> - 跨系统推送拉取（push / pull / notify / sync 外部接口）
+> - 定时同步（Cron 触发、批量处理）
+> - 工作流回调（method.ruleguid / workflowEvent.ruleGuid / workflowTransitionCondition.ruleGuid）
+> - 多节点编排（条件、迭代、代码节点等）
+>
+> 反例：**不要**给用车申请这类业务主动建议 `getDataGridModel / getDetail / saveOrUpdate / delete`；这些都是标准接口。详见 `references/event/动作流/index.md` § 1。
 
 ## 5 阶段 12 步
 
 | 阶段 | 步骤 | 动作 | 输出 |
 |------|------|------|------|
 | 阶段一：输入识别 | 1 | 判断输入是新建应用、补充已有应用还是单资产生成 | 任务类型 |
-| 阶段一：输入识别 | 2 | 确认工程根、action 子工程、metadata 目录或待创建目录 | 目标边界 |
+| 阶段一：输入识别 | 2 | 确认工程根、action 子工程、应用根目录或待创建目录 | 目标边界 |
 | 阶段二：应用蓝图 | 3 | 抽取应用基础信息、套件、分类、标识建议 | application |
 | 阶段二：应用蓝图 | 4 | 抽取业务对象、字段、字典、页面、菜单、接口、流程 | assets 草案 |
-| 阶段三：资产拆分 | 5 | 把蓝图映射到 8 类 metadata 资产 | 资产拆分表 |
+| 阶段三：资产拆分 | 5 | 把蓝图映射到 8 类应用资产 | 资产拆分表 |
 | 阶段三：资产拆分 | 6 | 梳理依赖关系，如 mis 字段引用 codeitem、页面 action 调用 resource | 依赖表 |
 | 阶段三：资产拆分 | 7 | 为每个资产选择脚本、模板或手工补充策略 | 生成方式 |
 | 阶段四：计划落盘 | 8 | 写入目标文件、覆盖策略、脚本命令、校验方式 | `.lowcode-plans/<apptag>-plan.md` |
@@ -48,7 +63,7 @@
 | 阶段五：验证归档 | 11 | 运行单文件校验、资产清单、跨引用校验 | 校验结果 |
 | 阶段五：验证归档 | 12 | 汇报完成情况、关键文件、风险和下一步 | 校验报告 |
 
-阶段四是硬门禁：没有明确批准，只能维护计划文档，不调用脚本、不写 metadata、不覆盖已有文件。
+阶段四是硬门禁：没有明确批准，只能维护计划文档，不调用脚本、不写应用资产、不覆盖已有文件。
 
 ## 步骤文件
 
@@ -56,7 +71,7 @@
 |------|------|------|
 | 1 | `workflow/01-requirement-recognition.md` | 识别输入材料、应用边界和缺失信息 |
 | 2 | `workflow/02-app-blueprint.md` | 形成应用蓝图 |
-| 3 | `workflow/03-asset-breakdown.md` | 拆成 8 类 metadata 资产 |
+| 3 | `workflow/03-asset-breakdown.md` | 拆成 8 类应用资产 |
 | 4 | `workflow/04-generation-plan.md` | 输出落盘计划并等待批准 |
 | 5 | `workflow/05-validation-report.md` | 校验和回报 |
 
@@ -94,10 +109,10 @@ open_questions: []
 
 - 当前工具名称：`tool_name`（无法识别时写 `unknown-cli-agent`）。
 - 计划文档路径：`.lowcode-plans/<apptag>-plan.md`。
-- 目标 metadata 目录。
+- 目标 应用根目录。
 - 新增、修改、跳过、覆盖的文件清单；如需 `--force` 必须明说。
 - 每个脚本的用途和关键参数，不要求用户自己理解 CLI。
-- 校验命令：单文件校验 + `validate_yml.py --check-refs <metadata>`。
+- 校验命令：单文件校验 + `validate_yml.py --check-refs <app-root>`。
 - 仍未确认的信息，不能伪装成确定值。
 - 未要求动作流时，`event` 必须标注“仅保留目录，不生成 `.event.yml`”。
 - `codeitem` 未确认子项、`mis` 未确认字段清单时，只能放入待确认问题，不能列入可执行脚本。
@@ -106,8 +121,8 @@ open_questions: []
 
 ## 校验报告必须包含
 
-- `inventory_metadata.py --metadata <metadata>` 的资产数量摘要。
-- `validate_yml.py --strict --check-refs <metadata>` 的结果。
+- `inventory_metadata.py --app-root <app-root>` 的资产数量摘要。
+- `validate_yml.py --strict --check-refs <app-root>` 的结果。
 - 页面 schema 的引用闭合情况：events、source、model/textModel、actions.steps。
 - appref 和 mis 字典引用风险。
 - 最多列 5 个关键文件，避免把长路径刷屏。

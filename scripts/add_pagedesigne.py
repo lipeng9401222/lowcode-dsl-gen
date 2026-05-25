@@ -4,21 +4,25 @@
 用法：
     # 列表页
     python add_pagedesigne.py \\
-        --metadata /path/to/.../metadata \\
+        --app-root /path/to/.../<apptag> \\
+        --pagetag carapply_list \\
         --type list \\
-        --title "采购立项列表" \\
-        --endpoint "/api/purchaseproject" \\
-        --fields-json '[{"name":"project_name","label":"项目名称","type":"string"}]' \\
+        --title "用车申请列表" \\
+        --endpoint "/api/carapply" \\
+        --fields-json '[{"name":"applyer","label":"申请人","type":"string"}]' \\
         --query-json '[{"name":"keyword","label":"关键词","type":"string"}]'
 
     # 表单页
     python add_pagedesigne.py \\
-        --metadata /path/to/.../metadata \\
+        --app-root /path/to/.../<apptag> \\
+        --pagetag carapply_form \\
         --type form \\
-        --title "采购立项表单" \\
-        --model project \\
-        --endpoint "/api/purchaseproject" \\
-        --fields-json '[{"name":"project_name","label":"项目名称","required":true}]'
+        --title "用车申请表单" \\
+        --model carapply \\
+        --endpoint "/api/carapply" \\
+        --fields-json '[{"name":"applyer","label":"申请人","required":true}]'
+
+兼容：--metadata 旧参数仍可用，等价于 --app-root（输出 deprecation warn）。
 """
 from __future__ import annotations
 
@@ -146,8 +150,12 @@ def input_node(page_id: str, model_name: str, field: dict, *, action: str | None
     )
 
 
-def base_schema(page_id: str, title: str, device: str) -> dict:
+PAGETAG_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def base_schema(page_id: str, pagetag: str, title: str, device: str) -> dict:
     return {
+        "pagetag": pagetag,
         "schemaVersion": "core-1.0",
         "kind": "page",
         "id": page_id,
@@ -332,7 +340,10 @@ def build_custom(schema: dict, args, fields: list[dict]) -> None:
 
 def cli():
     parser = argparse.ArgumentParser(description="创建 pagedesigne Core Schema yml（内容仍为 JSON 文本）")
-    parser.add_argument("--metadata", required=True, help="metadata 目录路径")
+    parser.add_argument("--app-root", "--metadata", dest="app_root", required=True,
+                        help="应用根目录路径（<apptag>/）。--metadata 是旧别名，仍可用")
+    parser.add_argument("--pagetag", required=True,
+                        help="页面运行时标识，应用内唯一（小写英文+数字+下划线，如 carapply_form）")
     parser.add_argument("--type", choices=["list", "form", "detail", "custom"], default="custom", help="页面类型")
     parser.add_argument("--title", required=True, help="页面标题（中文）")
     parser.add_argument("--page-id", help="页面稳定 id；不填则自动生成")
@@ -346,10 +357,33 @@ def cli():
     parser.add_argument("--no-validate", action="store_true", help="跳过 validate_yml.py 自检")
     args = parser.parse_args()
 
-    metadata_dir = Path(args.metadata).resolve()
-    if not metadata_dir.is_dir():
-        print_err(f"metadata 目录不存在: {metadata_dir}")
+    # 兼容老的 --metadata 参数：若用户用了它，给一次 deprecation 提示
+    if "--metadata" in sys.argv:
+        print_warn("--metadata 已废弃，建议改用 --app-root（功能相同，下版本将移除）")
+
+    app_root = Path(args.app_root).resolve()
+    if not app_root.is_dir():
+        print_err(f"应用根目录不存在: {app_root}")
         return 1
+
+    # 校验 pagetag 格式
+    if not PAGETAG_PATTERN.match(args.pagetag):
+        print_err(f"pagetag 不合法: {args.pagetag}（要求小写字母开头，仅含小写英文/数字/下划线）")
+        return 1
+
+    # 校验 pagetag 应用内唯一
+    page_dir = app_root / "pagedesigne"
+    if page_dir.is_dir():
+        for existing in page_dir.glob("*.pagedesigne.yml"):
+            try:
+                content = existing.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            # 简单字符串匹配（pagedesigne 是 JSON 文本，pagetag 在顶层）
+            match = re.search(r'"pagetag"\s*:\s*"([^"]+)"', content)
+            if match and match.group(1) == args.pagetag:
+                print_err(f"pagetag '{args.pagetag}' 已被 {existing.name} 占用，请改用其他值（应用内必须唯一）")
+                return 1
 
     try:
         fields = normalize_fields(parse_json_arg(args.fields_json, expected_type=list, label="--fields-json"))
@@ -363,7 +397,7 @@ def cli():
         return 1
 
     page_id = args.page_id or gen_page_id(args.title)
-    schema = base_schema(page_id, args.title, args.device)
+    schema = base_schema(page_id, args.pagetag, args.title, args.device)
     if args.type == "list":
         build_list(schema, args, fields, query_fields)
     elif args.type == "form":
@@ -373,7 +407,6 @@ def cli():
     else:
         build_custom(schema, args, fields)
 
-    page_dir = metadata_dir / "pagedesigne"
     page_dir.mkdir(parents=True, exist_ok=True)
     filename = args.filename or safe_filename(args.title)
     target = page_dir / f"{filename}.pagedesigne.yml"
@@ -384,6 +417,7 @@ def cli():
     json_dump(schema, target)
     print_ok(f"页面 schema 已创建: {target}")
     print_info(f"  - 标题: {args.title}")
+    print_info(f"  - pagetag: {args.pagetag}")
     print_info(f"  - 页面类型: {args.type}")
     print_info(f"  - 页面 id: {page_id}")
     print_info(f"  - 字段数: {len(fields)}")

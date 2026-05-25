@@ -14,7 +14,7 @@
 用法：
     python validate_yml.py <文件或目录路径>
     python validate_yml.py --strict <文件或目录路径>     # 严格模式：警告也当错误
-    python validate_yml.py --check-refs <metadata目录>   # 跨文件引用校验
+    python validate_yml.py --check-refs <应用根目录>     # 跨文件引用校验（新结构 <apptag>/ 或老结构 <apptag>/metadata/）
 """
 from __future__ import annotations
 
@@ -148,8 +148,13 @@ def validate_appinfo(path: Path, data: dict, result: ValidationResult):
     if not APPTAG_PATTERN.match(apptag):
         result.err(p, f"apptag '{apptag}' 不合法（应为小写字母开头 + 字母/数字）")
 
-    # apptag 与目录名一致
-    apptag_dir = path.parent.parent.name
+    # apptag 与目录名一致：
+    # 新结构 appinfo.lowcode.yml 直接在 <apptag>/ 下 → path.parent.name 即 apptag
+    # 老结构 appinfo.lowcode.yml 在 <apptag>/metadata/ 下 → path.parent.parent.name 即 apptag
+    if path.parent.name == "metadata":
+        apptag_dir = path.parent.parent.name
+    else:
+        apptag_dir = path.parent.name
     if apptag != apptag_dir:
         result.err(p, f"apptag '{apptag}' 与目录名 '{apptag_dir}' 不一致")
 
@@ -387,7 +392,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         2. 开始节点(10) 与 申请节点(30) 必须分拆为两个独立 activity
         3. 开始节点名称固定 '开始'；结束节点名称固定 '结束'
         4. 开始/结束/浏览节点的 handleurl/multitransactormode/timelimitenable/
-           earlywarning_enable/isallowaddattachfile/isPassWhenNoTransactor 应为空
+           earlywarning_enable/isallowaddattachfile/is_passwhennotransactor 应为空
            （开始/结束节点的 handleurl 必须为空；浏览节点的这些字段也应为空）
         5. processversionguid 在所有子节点中必须一致
         6. 退回按钮(operationtype=30)必须有对应 workflowConfig(belongto=22, configname=backTargetScope)
@@ -411,10 +416,10 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         process = wf.get("WorkflowProcess")
     process = process or {}
 
-    process_guid = process.get("processguid") or process.get("processGuid")
+    process_guid = process.get("processguid") or process.get("processguid")
     if not process_guid:
         result.err(p, "workflowProcess.processguid 缺失")
-    if not (process.get("processname") or process.get("processName")):
+    if not (process.get("processname") or process.get("processname")):
         result.err(p, "workflowProcess.processname 缺失")
 
     version = wf.get("workflowVersion")
@@ -455,7 +460,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         if not isinstance(raw, dict):
             continue
         # 兼容旧结构：activity[i] = { WorkflowActivity: {...}, WorkflowActivityOperation: [...] }
-        if "WorkflowActivity" in raw and "activityguid" not in raw and "activityGuid" not in raw:
+        if "WorkflowActivity" in raw and "activityguid" not in raw and "activityguid" not in raw:
             inner = raw.get("WorkflowActivity") or {}
             ops = raw.get("WorkflowActivityOperation") or []
             if not isinstance(inner, dict):
@@ -486,10 +491,10 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
 
     for act, owner in parsed_activities:
         atype = act.get("activitytype", act.get("activityType"))
-        aname = act.get("activityname") or act.get("activityName") or ""
-        aguid = act.get("activityguid") or act.get("activityGuid")
+        aname = act.get("activityname") or act.get("activityname") or ""
+        aguid = act.get("activityguid") or act.get("activityguid")
         avml = act.get("vmlid", act.get("vmlId"))
-        apvg = act.get("processversionguid") or act.get("processVersionGuid")
+        apvg = act.get("processversionguid") or act.get("processversionguid")
 
         if aguid:
             if aguid in activity_guids:
@@ -572,11 +577,11 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
 
     # 红线 3：开始/结束节点名称固定
     for act in start_acts:
-        name = act.get("activityname") or act.get("activityName") or ""
+        name = act.get("activityname") or act.get("activityname") or ""
         if name != "开始":
             result.err(p, f"开始节点 activityname 必须为 '开始'，实际 '{name}'")
     for act in end_acts:
-        name = act.get("activityname") or act.get("activityName") or ""
+        name = act.get("activityname") or act.get("activityname") or ""
         if name != "结束":
             result.err(p, f"结束节点 activityname 必须为 '结束'，实际 '{name}'")
 
@@ -591,7 +596,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         "earlywarning_enable": ("earlywarning_enable", "earlyWarning_enable", "earlyWarningEnable"),
         "isallowaddattachfile": ("isallowaddattachfile", "isAllowAddAttachFile"),
         "timelimitenable": ("timelimitenable", "timeLimitEnable"),
-        "isPassWhenNoTransactor": ("isPassWhenNoTransactor", "ispasswhennotransactor"),
+        "is_passwhennotransactor": ("is_passwhennotransactor", "isPassWhenNoTransactor"),
     }
     for label, acts in (("开始", start_acts), ("结束", end_acts)):
         for act in acts:
@@ -623,6 +628,32 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
                 )
 
     # ============================================================
+    # handleurl 风格 warn：activitytype ∈ {30, 50, 100, 110} 节点
+    # 推荐使用 home/vuepagedesigner/renderer/ 开头 + ?pagetag=<tag>
+    # ============================================================
+    HANDLEURL_PREFIX = "home/vuepagedesigner/renderer/"
+    for act in activities:
+        if not isinstance(act, dict):
+            continue
+        atype = act.get("activitytype", act.get("activityType"))
+        if atype not in (30, 50, 100, 110):
+            continue
+        for field in ("handleurl", "mobilehandleurl"):
+            url = act.get(field)
+            if not url or not isinstance(url, str):
+                continue
+            if url == "[#=FirstMaterialUrl#]":
+                result.warn(
+                    p,
+                    f"活动 '{act.get('activityname', '?')}' 的 {field}='[#=FirstMaterialUrl#]' 已废弃，建议改为 'home/vuepagedesigner/renderer/add?pagetag=<page_tag>'",
+                )
+            elif not url.startswith(HANDLEURL_PREFIX):
+                result.warn(
+                    p,
+                    f"活动 '{act.get('activityname', '?')}' 的 {field} 建议以 '{HANDLEURL_PREFIX}' 开头（实际 '{url}'）",
+                )
+
+    # ============================================================
     # 红线 2：开始 != 申请（同一节点不能既是 10 又是 30）
     # 通过 type_count 已隐含；这里再校验"开始节点不应绑定表单/handleurl"
     # ============================================================
@@ -648,7 +679,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         if isinstance(pversion_obj, dict)
         else None
     ) or (
-        pversion_obj.get("processVersionGuid")
+        pversion_obj.get("processversionguid")
         if isinstance(pversion_obj, dict)
         else None
     )
@@ -668,7 +699,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         if isinstance(pversion_obj, dict)
         else None
     ) or (
-        pversion_obj.get("processGuid")
+        pversion_obj.get("processguid")
         if isinstance(pversion_obj, dict)
         else None
     )
@@ -689,7 +720,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
             if not isinstance(op, dict):
                 continue
             otype = op.get("operationtype", op.get("operationType"))
-            oguid = op.get("operationguid") or op.get("operationGuid")
+            oguid = op.get("operationguid") or op.get("operationguid")
             if otype == 30 and oguid:
                 reject_op_guids.add(oguid)
                 # 退回按钮的关键字段
@@ -699,12 +730,12 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
                         f"{owner}.operations[{j}] 退回按钮缺少 targetactivity，"
                         f"建议设为 [#=AllBeforeActivity#]",
                     )
-                # multiTransctorMode 枚举校验：仅允许 OR / AND / OrAndRead
-                mtm = op.get("multiTransctorMode")
+                # multitransctormode 枚举校验：仅允许 OR / AND / OrAndRead
+                mtm = op.get("multitransctormode")
                 if mtm is not None and mtm not in ("OR", "AND", "OrAndRead"):
                     result.err(
                         p,
-                        f"{owner}.operations[{j}] 退回按钮 multiTransctorMode='{mtm}' "
+                        f"{owner}.operations[{j}] 退回按钮 multitransctormode='{mtm}' "
                         f"不在允许的集合 {{OR, AND, OrAndRead}} 中",
                     )
 
@@ -713,7 +744,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         for k, conf in enumerate(workflow_config):
             if not isinstance(conf, dict):
                 continue
-            sguid = conf.get("sourceguid") or conf.get("sourceGuid")
+            sguid = conf.get("sourceguid") or conf.get("sourceguid")
             cname = conf.get("configname") or conf.get("configName")
             if cname == "backTargetScope" and sguid:
                 config_source_guids.add(sguid)
@@ -741,12 +772,12 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
                 continue
             if act.get("multitransactormode") == 25:
                 pass_when_empty = (
-                    act.get("isPassWhenNoTransactor")
-                    if "isPassWhenNoTransactor" in act
-                    else act.get("is_passwhennotransactor")
+                    act.get("is_passwhennotransactor")
+                    if "is_passwhennotransactor" in act
+                    else act.get("isPassWhenNoTransactor")
                 )
                 if pass_when_empty != 10:
-                    result.warn(p, f"{owner} 是自由流转节点（multitransactormode=25），建议设置 isPassWhenNoTransactor=10")
+                    result.warn(p, f"{owner} 是自由流转节点（multitransactormode=25），建议设置 is_passwhennotransactor=10")
 
     if process_mode_value in (10, "10") and custom_design_operation_count == 0:
         result.warn(p, "自定义流程（isnewversion=10）建议至少配置 1 个 operationtype=80 的自定义流程设计按钮")
@@ -759,7 +790,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         if not isinstance(t, dict):
             continue
         # 兼容旧结构 WorkflowTransition 包装
-        if "WorkflowTransition" in t and "transitionguid" not in t and "transitionGuid" not in t:
+        if "WorkflowTransition" in t and "transitionguid" not in t and "transitionguid" not in t:
             result.warn(p, f"transition[{i}] 仍带 WorkflowTransition 包装层，请按规范平铺")
             wt = t.get("WorkflowTransition") or {}
         else:
@@ -767,7 +798,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
 
         from_g = wt.get("fromactivityguid") or wt.get("fromActivityGuid")
         to_g = wt.get("toactivityguid") or wt.get("toActivityGuid")
-        tname = wt.get("transitionname") or wt.get("transitionName")
+        tname = wt.get("transitionname") or wt.get("transitionname")
         tvml = wt.get("vmlid", wt.get("vmlId"))
 
         if not from_g:
@@ -812,8 +843,8 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
                 )
 
     # 流转必须从开始 → 申请 → ... → 结束（不能跳过申请节点）
-    start_guids = {a.get("activityguid") or a.get("activityGuid") for a in start_acts}
-    apply_guids = {a.get("activityguid") or a.get("activityGuid") for a in apply_acts}
+    start_guids = {a.get("activityguid") or a.get("activityguid") for a in start_acts}
+    apply_guids = {a.get("activityguid") or a.get("activityguid") for a in apply_acts}
     has_start_to_apply = False
     for t in transitions:
         if not isinstance(t, dict):
@@ -840,14 +871,14 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         result.warn(p, "缺少 workflowPvMaterial（流程版本材料），1 个流程通常需要 1 个表单")
     elif isinstance(pv_material, list):
         material_guids = {
-            (m.get("materialguid") or m.get("materialGuid"))
+            (m.get("materialguid") or m.get("materialguid"))
             for m in pv_material
             if isinstance(m, dict)
         }
         material_guids.discard(None)
         if pv_mistableset and isinstance(pv_mistableset, list):
             ts_material_guids = {
-                (m.get("materialguid") or m.get("materialGuid"))
+                (m.get("materialguid") or m.get("materialguid"))
                 for m in pv_mistableset
                 if isinstance(m, dict)
             }
@@ -863,24 +894,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
     # 字段类型校验（防止数字/字符串混淆）
     # ============================================================
 
-    # --- workflowPvMisTableSet.tableid 必须为整数 ---
-    if isinstance(pv_mistableset, list):
-        for i, ts in enumerate(pv_mistableset):
-            if not isinstance(ts, dict):
-                continue
-            tid = ts.get("tableid")
-            if tid is not None and tid != "":
-                if not isinstance(tid, int):
-                    result.err(
-                        p,
-                        f"workflowPvMisTableSet[{i}].tableid 必须为整数（规范要求数字类型），"
-                        f"实际值 '{tid}'（类型 {type(tid).__name__}）",
-                    )
-                elif tid < 0 or tid > 2147483647:
-                    result.warn(
-                        p,
-                        f"workflowPvMisTableSet[{i}].tableid={tid} 超出合理范围 [0, 2147483647]",
-                    )
+    # spec v2: workflowPvMisTableSet.tableid 已废弃（deprecation warn 在末尾统一处理）
 
     # --- activity 字段类型校验（字符串 vs 整数） ---
     for act, owner in parsed_activities:
@@ -895,7 +909,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
                 )
         # multitransactormode / isallowaddattachfile / timelimitenable / earlywarning_enable 非 null 时必须是整数
         for int_key in ("multitransactormode", "isallowaddattachfile", "timelimitenable",
-                         "earlywarning_enable", "isPassWhenNoTransactor"):
+                         "earlywarning_enable", "is_passwhennotransactor"):
             val = act.get(int_key)
             if val is not None and isinstance(val, str) and val not in ("", "null"):
                 result.warn(
@@ -938,21 +952,21 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
             result.warn(p, f"workflowProcessVersion.direction 应为字符串（如 '90'），实际是整数 {dir_val}")
 
         # 工作流扩展字段值域校验
-        revoke_opt = pversion_obj.get("revokeOption")
+        revoke_opt = pversion_obj.get("revokeoption")
         if revoke_opt is not None and revoke_opt not in (10, 20, 30, 40):
-            result.warn(p, f"workflowProcessVersion.revokeOption={revoke_opt} 不在合法值域 {{10,20,30,40}}")
-        no_part = pversion_obj.get("noParticipatorOption")
+            result.warn(p, f"workflowProcessVersion.revokeoption={revoke_opt} 不在合法值域 {{10,20,30,40}}")
+        no_part = pversion_obj.get("noparticipatoroption")
         if no_part is not None and no_part not in (10, 20, 30):
-            result.warn(p, f"workflowProcessVersion.noParticipatorOption={no_part} 不在合法值域 {{10,20,30}}")
-        show_line = pversion_obj.get("isShowLineGraph")
+            result.warn(p, f"workflowProcessVersion.noparticipatoroption={no_part} 不在合法值域 {{10,20,30}}")
+        show_line = pversion_obj.get("isshowlinegraph")
         if show_line is not None and show_line not in ("Normal", "Orthogonal"):
-            result.warn(p, f"workflowProcessVersion.isShowLineGraph='{show_line}' 不在合法值域 {{Normal, Orthogonal}}")
-        show_node = pversion_obj.get("isShowNodeSimple")
+            result.warn(p, f"workflowProcessVersion.isshowlinegraph='{show_line}' 不在合法值域 {{Normal, Orthogonal}}")
+        show_node = pversion_obj.get("isshownodesimple")
         if show_node is not None and show_node not in ("details", "simple"):
-            result.warn(p, f"workflowProcessVersion.isShowNodeSimple='{show_node}' 不在合法值域 {{details, simple}}")
-        revoke_remind = pversion_obj.get("revokeRemindOption")
+            result.warn(p, f"workflowProcessVersion.isshownodesimple='{show_node}' 不在合法值域 {{details, simple}}")
+        revoke_remind = pversion_obj.get("revokeremindoption")
         if revoke_remind is not None and revoke_remind not in (10, 20):
-            result.warn(p, f"workflowProcessVersion.revokeRemindOption={revoke_remind} 不在合法值域 {{10,20}}")
+            result.warn(p, f"workflowProcessVersion.revokeremindoption={revoke_remind} 不在合法值域 {{10,20}}")
 
     # --- transition 字段类型校验 ---
     for i, t in enumerate(transitions):
@@ -962,8 +976,8 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         if not isinstance(wt, dict):
             continue
         for int_key_t in ("is_sendtomessagecenter", "priority", "type",
-                          "targetActivityTransactorSource", "is_targettransactor_editable",
-                          "isDefault", "is_showasoperationbutton"):
+                          "targetactivitytransactorsource", "is_targettransactor_editable",
+                          "is_default", "is_showasoperationbutton"):
             val = wt.get(int_key_t)
             if val is not None and isinstance(val, str) and val not in ("", "null"):
                 result.warn(
@@ -983,12 +997,12 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         for i, m in enumerate(methods):
             if not isinstance(m, dict):
                 continue
-            mg = m.get("methodGuid") or m.get("methodguid")
+            mg = m.get("methodguid") or m.get("methodguid")
             if mg:
                 method_guids.add(mg)
             else:
-                result.warn(p, f"method[{i}] 缺少 methodGuid")
-            mpvg = m.get("processversionguid") or m.get("processVersionGuid")
+                result.warn(p, f"method[{i}] 缺少 methodguid")
+            mpvg = m.get("processversionguid") or m.get("processversionguid")
             if mpvg:
                 process_version_guids.add(mpvg)
             # 校验子参数引用闭合
@@ -997,14 +1011,14 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
                 for j, param in enumerate(params):
                     if not isinstance(param, dict):
                         continue
-                    pmg = param.get("methodGuid") or param.get("methodguid")
+                    pmg = param.get("methodguid") or param.get("methodguid")
                     if pmg and mg and pmg != mg:
                         result.err(
                             p,
-                            f"method[{i}].workflowMethodParameter[{j}].methodGuid "
+                            f"method[{i}].workflowMethodParameter[{j}].methodguid "
                             f"'{pmg}' 与所属方法 '{mg}' 不一致",
                         )
-                    ppvg = param.get("processversionguid") or param.get("processVersionGuid")
+                    ppvg = param.get("processversionguid") or param.get("processversionguid")
                     if ppvg:
                         process_version_guids.add(ppvg)
 
@@ -1014,25 +1028,25 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         for i, evt in enumerate(events):
             if not isinstance(evt, dict):
                 continue
-            emg = evt.get("eventMethodGuid") or evt.get("eventmethodguid")
-            rule_guid = evt.get("ruleGuid") or evt.get("ruleguid")
+            emg = evt.get("eventmethodguid") or evt.get("eventmethodguid")
+            rule_guid = evt.get("ruleguid") or evt.get("ruleguid")
             if not emg and not rule_guid:
-                result.warn(p, f"workflowEvent[{i}] 建议至少配置 eventMethodGuid 或 ruleGuid 之一")
+                result.warn(p, f"workflowEvent[{i}] 建议至少配置 eventmethodguid 或 ruleguid 之一")
             if emg and method_guids and emg not in method_guids:
                 result.warn(
                     p,
-                    f"workflowEvent[{i}].eventMethodGuid '{emg}' "
+                    f"workflowEvent[{i}].eventmethodguid '{emg}' "
                     f"不在已定义的 method 列表中",
                 )
-            sg = evt.get("sourceGuid") or evt.get("sourceguid")
-            bt = evt.get("belongTo") or evt.get("belongto")
+            sg = evt.get("sourceguid") or evt.get("sourceguid")
+            bt = evt.get("belongto") or evt.get("belongto")
             if bt == 20 and sg and sg not in activity_guids:
                 result.warn(
                     p,
-                    f"workflowEvent[{i}].sourceGuid '{sg}' "
-                    f"(belongTo=20 活动实例事件) 不在活动列表中",
+                    f"workflowEvent[{i}].sourceguid '{sg}' "
+                    f"(belongto=20 活动实例事件) 不在活动列表中",
                 )
-            epvg = evt.get("processversionguid") or evt.get("processVersionGuid")
+            epvg = evt.get("processversionguid") or evt.get("processversionguid")
             if epvg:
                 process_version_guids.add(epvg)
 
@@ -1043,21 +1057,21 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         if isinstance(pv_material, list):
             for m in pv_material:
                 if isinstance(m, dict):
-                    mg_ = m.get("materialguid") or m.get("materialGuid")
+                    mg_ = m.get("materialguid") or m.get("materialguid")
                     if mg_:
                         material_guid_set.add(mg_)
         for i, ctx in enumerate(contexts):
             if not isinstance(ctx, dict):
                 continue
-            vs = ctx.get("valueSource") or ctx.get("valuesource")
-            fmg = ctx.get("fromMaterialGuid") or ctx.get("frommaterialguid")
+            vs = ctx.get("valuesource") or ctx.get("valuesource")
+            fmg = ctx.get("frommaterialguid") or ctx.get("frommaterialguid")
             if vs == 30 and fmg and material_guid_set and fmg not in material_guid_set:
                 result.warn(
                     p,
-                    f"workflowContext[{i}].fromMaterialGuid '{fmg}' "
+                    f"workflowContext[{i}].frommaterialguid '{fmg}' "
                     f"不在 workflowPvMaterial 列表中",
                 )
-            cpvg = ctx.get("processversionguid") or ctx.get("processVersionGuid")
+            cpvg = ctx.get("processversionguid") or ctx.get("processversionguid")
             if cpvg:
                 process_version_guids.add(cpvg)
 
@@ -1069,7 +1083,7 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
         wt = t.get("WorkflowTransition") if "WorkflowTransition" in t else t
         if not isinstance(wt, dict):
             continue
-        tg = wt.get("transitionguid") or wt.get("transitionGuid")
+        tg = wt.get("transitionguid") or wt.get("transitionguid")
         if tg:
             transition_guid_set.add(tg)
         # 校验 transition 内嵌的条件
@@ -1080,40 +1094,40 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
             for j, cond in enumerate(conds):
                 if not isinstance(cond, dict):
                     continue
-                ctg = cond.get("transitionGuid") or cond.get("transitionguid")
+                ctg = cond.get("transitionguid") or cond.get("transitionguid")
                 if ctg and tg and ctg != tg:
                     result.err(
                         p,
-                        f"transition.workflowTransitionCondition[{j}].transitionGuid "
+                        f"transition.workflowTransitionCondition[{j}].transitionguid "
                         f"'{ctg}' 与所属变迁 '{tg}' 不一致",
                     )
-                cet = cond.get("conditionExpressionType") or cond.get("conditionexpressiontype")
+                cet = cond.get("conditionexpressiontype") or cond.get("conditionexpressiontype")
                 if cet == 10:
-                    for required_key in ("leftValue", "compareOperation", "rightValue", "valueType"):
+                    for required_key in ("leftvalue", "compareoperation", "rightvalue", "valuetype"):
                         legacy_key = required_key[:1].lower() + required_key[1:]
                         if cond.get(required_key) in (None, "") and cond.get(legacy_key) in (None, ""):
                             result.warn(
                                 p,
-                                f"workflowTransitionCondition[{j}] conditionExpressionType=10 缺少 {required_key}",
+                                f"workflowTransitionCondition[{j}] conditionexpressiontype=10 缺少 {required_key}",
                             )
                 elif cet == 20:
-                    if not (cond.get("conditionExpression") or cond.get("conditionexpression")):
-                        result.warn(p, f"workflowTransitionCondition[{j}] conditionExpressionType=20 缺少 conditionExpression")
+                    if not (cond.get("conditionexpression") or cond.get("conditionexpression")):
+                        result.warn(p, f"workflowTransitionCondition[{j}] conditionexpressiontype=20 缺少 conditionexpression")
                 if cet == 30:
-                    cmg = cond.get("methodGuid") or cond.get("methodguid")
-                    crg = cond.get("ruleGuid") or cond.get("ruleguid")
+                    cmg = cond.get("methodguid") or cond.get("methodguid")
+                    crg = cond.get("ruleguid") or cond.get("ruleguid")
                     if not cmg and not crg:
                         result.warn(
                             p,
-                            f"workflowTransitionCondition[{j}] conditionExpressionType=30 建议配置 methodGuid 或 ruleGuid 之一",
+                            f"workflowTransitionCondition[{j}] conditionexpressiontype=30 建议配置 methodguid 或 ruleguid 之一",
                         )
                     if cmg and method_guids and cmg not in method_guids:
                         result.warn(
                             p,
-                            f"workflowTransitionCondition.methodGuid '{cmg}' "
+                            f"workflowTransitionCondition.methodguid '{cmg}' "
                             f"不在已定义的 method 列表中",
                         )
-                cpvg = cond.get("processversionguid") or cond.get("processVersionGuid")
+                cpvg = cond.get("processversionguid") or cond.get("processversionguid")
                 if cpvg:
                     process_version_guids.add(cpvg)
 
@@ -1124,6 +1138,119 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
             f"processversionguid 在不同节点上不一致（含工作流扩展节点），"
             f"发现 {len(process_version_guids)} 个: {sorted(process_version_guids)}",
         )
+
+    # ============================================================
+    # 驼峰字段 deprecation 检测（spec v2 要求统一小写下划线）
+    # ============================================================
+    DEPRECATED_CAMEL = {
+        "isDefault": "is_default",
+        "isPassWhenNoTransactor": "is_passwhennotransactor",
+        "isLockWhenMultiTransactor": "is_lockwhenmultitransactor",
+        "mobileHandleType": "mobilehandletype",
+        "targetActivityTransactorSource": "targetactivitytransactorsource",
+        "multiTransctorMode": "multitransctormode",
+        "stateLevel": "statelevel",
+        "controlVisiableMethodGuid": "controlvisiablemethodguid",
+        "defaultOpinion": "defaultopinion",
+        "is_ShowOpinionTemplete": "is_showopiniontemplete",
+        "isShowLineGraph": "isshowlinegraph",
+        "isShowNodeSimple": "isshownodesimple",
+        "revokeOption": "revokeoption",
+        "revokeAllowDay": "revokeallowday",
+        "revokeRemindOption": "revokeremindoption",
+        "noParticipatorOption": "noparticipatoroption",
+        "defaultUserGuid": "defaultuserguid",
+        "fromMisTableId": "fromsqltablename（注意值也变成 sql_tablename）",
+        "fromFieldId": "（已废弃，由引擎根据 fromfieldname + fromsqltablename 自动绑定）",
+    }
+
+    def _check_deprecated_recursive(node, parent_path: str = ""):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k in DEPRECATED_CAMEL:
+                    result.warn(
+                        p,
+                        f"{parent_path}.{k} 已废弃（spec v2），请改为 '{DEPRECATED_CAMEL[k]}'",
+                    )
+                _check_deprecated_recursive(v, f"{parent_path}.{k}" if parent_path else k)
+        elif isinstance(node, list):
+            for i, item in enumerate(node):
+                _check_deprecated_recursive(item, f"{parent_path}[{i}]")
+
+    _check_deprecated_recursive(wf, "workFlow")
+
+    # ============================================================
+    # spec v2 可选节点：workflowActivityMaterial / workflowActivityFieldAccess 引用闭合
+    # ============================================================
+    activity_guids_set = {act.get("activityguid") for act, _ in parsed_activities if isinstance(act, dict)}
+    material_guids_set = set()
+    if isinstance(pv_material, list):
+        material_guids_set = {m.get("materialguid") for m in pv_material if isinstance(m, dict)}
+    sqltablenames_set = set()
+    if isinstance(pv_mistableset, list):
+        sqltablenames_set = {ts.get("sql_tablename") for ts in pv_mistableset if isinstance(ts, dict)}
+
+    for act, owner in parsed_activities:
+        # spec v2 扩展字段值域校验
+        ltime = act.get("locktimewhenmultitransactor")
+        if ltime not in (None, ""):
+            try:
+                tval = int(ltime)
+                if tval < 1:
+                    result.warn(p, f"{owner}.locktimewhenmultitransactor={ltime} 应为 >1 的分钟数")
+            except (ValueError, TypeError):
+                result.warn(p, f"{owner}.locktimewhenmultitransactor='{ltime}' 应为字符串/整数表示的分钟数")
+        # passrate 0-100
+        prate = act.get("passrate")
+        if prate not in (None, ""):
+            try:
+                pv = int(prate)
+                if not (0 <= pv <= 100):
+                    result.warn(p, f"{owner}.passrate={prate} 应在 0-100 范围内")
+            except (ValueError, TypeError):
+                result.warn(p, f"{owner}.passrate='{prate}' 应为 0-100 的数值")
+        # passratecalculatemode 10 或 20
+        pmode = act.get("passratecalculatemode")
+        if pmode is not None and pmode not in (10, 20):
+            result.warn(p, f"{owner}.passratecalculatemode={pmode} 应为 10 或 20")
+
+        materials = act.get("workflowActivityMaterial") or []
+        for mi, mat in enumerate(materials):
+            if not isinstance(mat, dict):
+                continue
+            mat_act_guid = mat.get("activityguid")
+            if mat_act_guid and mat_act_guid not in activity_guids_set:
+                result.err(p, f"{owner}.workflowActivityMaterial[{mi}].activityguid '{mat_act_guid}' 找不到对应活动")
+            mat_mat_guid = mat.get("materialguid")
+            if mat_mat_guid and material_guids_set and mat_mat_guid not in material_guids_set:
+                result.err(p, f"{owner}.workflowActivityMaterial[{mi}].materialguid '{mat_mat_guid}' 找不到对应材料")
+            field_accesses = mat.get("workflowActivityFieldAccess") or []
+            for fi, fa in enumerate(field_accesses):
+                if not isinstance(fa, dict):
+                    continue
+                fa_amg = fa.get("activitymaterialguid")
+                if fa_amg and fa_amg != mat.get("activitymaterialguid"):
+                    result.err(
+                        p,
+                        f"{owner}.workflowActivityMaterial[{mi}].workflowActivityFieldAccess[{fi}].activitymaterialguid 不一致",
+                    )
+                fa_table = fa.get("sqltablename")
+                if fa_table and sqltablenames_set and fa_table not in sqltablenames_set:
+                    result.warn(
+                        p,
+                        f"{owner}.workflowActivityMaterial[{mi}].workflowActivityFieldAccess[{fi}].sqltablename '{fa_table}' "
+                        f"在 workflowPvMisTableSet 中找不到",
+                    )
+
+    # 检测到 workflowPvMisTableSet.tableid（已废弃）
+    if isinstance(pv_mistableset, list):
+        for i, ts in enumerate(pv_mistableset):
+            if isinstance(ts, dict) and ts.get("tableid") not in (None, ""):
+                result.warn(
+                    p,
+                    f"workflowPvMisTableSet[{i}].tableid 已废弃（spec v2），"
+                    f"现由引擎根据 sql_tablename 自动绑定 mis 表 ID，请删除此字段",
+                )
 
     if not any(p == path_ for path_, _ in result.errors):
         result.ok(p)
@@ -1224,6 +1351,15 @@ def validate_pagedesigne(path: Path, data: dict, result: ValidationResult):
         result.err(p, f"kind 应为 'page'，实际 '{data.get('kind')}'")
     if data.get("schemaVersion") != "core-1.0":
         result.warn(p, f"schemaVersion 应为 'core-1.0'，实际 '{data.get('schemaVersion')}'")
+
+    # pagetag 必填 + 格式校验（应用内唯一性在跨文件 check 里做，见 validate_pagedesigne_pagetag_refs）
+    pagetag = data.get("pagetag")
+    if not pagetag:
+        result.err(p, "缺少 pagetag 字段（页面运行时标识，应用内唯一，被 workflow handleurl 引用）")
+    elif not isinstance(pagetag, str):
+        result.err(p, f"pagetag 必须是字符串，实际 {type(pagetag).__name__}")
+    elif not re.match(r"^[a-z][a-z0-9_]*$", pagetag):
+        result.err(p, f"pagetag 不合法: '{pagetag}'（要求小写字母开头，仅含小写英文/数字/下划线）")
 
     models = data.get("models") or {}
     resources = data.get("resources") or {}
@@ -1434,11 +1570,17 @@ def find_target_files(path: Path) -> list[Path]:
 
 
 def validate_metadata_dir_structure(metadata_dir: Path, result: ValidationResult):
-    """校验 metadata 目录整体结构（appinfo 必备等）."""
+    """校验应用根目录整体结构（appinfo 必备等）。
+
+    支持新结构（<apptag>/ 下直接含 appinfo + 资产子目录）和老结构（<apptag>/metadata/）。
+    """
     p = str(metadata_dir)
     appinfo = metadata_dir / "appinfo.lowcode.yml"
     if not appinfo.is_file():
-        result.err(p, "metadata 目录缺少 appinfo.lowcode.yml")
+        if metadata_dir.name == "metadata":
+            result.err(p, "应用根目录（metadata/）缺少 appinfo.lowcode.yml")
+        else:
+            result.err(p, "应用根目录缺少 appinfo.lowcode.yml")
 
 
 def load_any(path: Path):
@@ -1451,12 +1593,16 @@ def load_any(path: Path):
         return None
 
 
-def read_apptag(metadata_dir: Path) -> str:
-    appinfo = metadata_dir / "appinfo.lowcode.yml"
+def read_apptag(app_root: Path) -> str:
+    """读取 apptag。新结构下 app_root 自身就是 <apptag>/，老结构下是 <apptag>/metadata/."""
+    appinfo = app_root / "appinfo.lowcode.yml"
     data = load_any(appinfo) if appinfo.is_file() else {}
     if isinstance(data, dict) and data.get("apptag"):
         return str(data["apptag"])
-    return metadata_dir.parent.name
+    # 老结构 fallback：父目录名（即 <apptag>）；新结构：目录自身名字
+    if app_root.name == "metadata":
+        return app_root.parent.name
+    return app_root.name
 
 
 def inventory_assets(metadata_dir: Path) -> dict[str, set[str]]:
@@ -1482,7 +1628,7 @@ def inventory_assets(metadata_dir: Path) -> dict[str, set[str]]:
         elif yml_type == "workflow":
             wf = (data or {}).get("workFlow") or (data or {}).get("WorkFlow") or {}
             process = wf.get("workflowProcess") or wf.get("WorkflowProcess") or {}
-            process_name = process.get("processname") or process.get("processName")
+            process_name = process.get("processname") or process.get("processname")
             inventory["workflow"].update(x for x in [stem, process_name] if x)
         elif yml_type == "pagedesigne" or (path.suffix.lower() == ".json" and parent == "pagedesigne"):
             inventory["pagedesigne"].update(x for x in [stem, (data or {}).get("title"), (data or {}).get("id")] if x)
@@ -1500,7 +1646,18 @@ def find_resources_root(metadata_dir: Path) -> Path:
 
 
 def find_metadata_by_apptag(metadata_dir: Path, apptag: str) -> Optional[Path]:
+    """按 apptag 查找应用根目录。优先新结构，老结构兜底。"""
     resources_root = find_resources_root(metadata_dir)
+    KNOWN_ASSETS = {"codeitem", "mis", "module", "event", "workflow", "pagedesigne", "api"}
+    # 新结构：<apptag>/ 下直接放 appinfo 或资产子目录
+    for candidate in resources_root.rglob(apptag):
+        if not candidate.is_dir() or candidate.name != apptag:
+            continue
+        if (candidate / "appinfo.lowcode.yml").is_file():
+            return candidate
+        if any((candidate / a).is_dir() for a in KNOWN_ASSETS):
+            return candidate
+    # 老结构兼容：<apptag>/metadata/
     for candidate in resources_root.rglob(f"{apptag}/metadata"):
         if candidate.is_dir():
             return candidate
@@ -1571,7 +1728,7 @@ def _as_list(value) -> list:
 
 
 def validate_workflow_ruleguid_refs(metadata_dir: Path, current_inventory: dict[str, set[str]], result: ValidationResult) -> None:
-    """校验 workflow 中指向动作流的 ruleGuid/ruleguid 是否能在 event 资产中找到."""
+    """校验 workflow 中指向动作流的 ruleguid/ruleguid 是否能在 event 资产中找到."""
     event_refs = {str(x) for x in current_inventory.get("event", set()) if x}
     workflow_dir = metadata_dir / "workflow"
     if not workflow_dir.is_dir():
@@ -1589,16 +1746,16 @@ def validate_workflow_ruleguid_refs(metadata_dir: Path, current_inventory: dict[
         for i, method in enumerate(_as_list(version.get("method"))):
             if not isinstance(method, dict):
                 continue
-            rule_guid = method.get("ruleguid") or method.get("ruleGuid")
+            rule_guid = method.get("ruleguid") or method.get("ruleguid")
             if rule_guid and str(rule_guid) not in event_refs:
                 result.err(str(path), f"method[{i}].ruleguid 引用不存在的动作流: {rule_guid}")
 
         for i, event in enumerate(_as_list(version.get("workflowEvent"))):
             if not isinstance(event, dict):
                 continue
-            rule_guid = event.get("ruleGuid") or event.get("ruleguid")
+            rule_guid = event.get("ruleguid") or event.get("ruleguid")
             if rule_guid and str(rule_guid) not in event_refs:
-                result.err(str(path), f"workflowEvent[{i}].ruleGuid 引用不存在的动作流: {rule_guid}")
+                result.err(str(path), f"workflowEvent[{i}].ruleguid 引用不存在的动作流: {rule_guid}")
 
         for ti, transition in enumerate(_as_list(version.get("transition"))):
             if not isinstance(transition, dict):
@@ -1609,24 +1766,65 @@ def validate_workflow_ruleguid_refs(metadata_dir: Path, current_inventory: dict[
             for ci, condition in enumerate(_as_list(wt.get("workflowTransitionCondition"))):
                 if not isinstance(condition, dict):
                     continue
-                rule_guid = condition.get("ruleGuid") or condition.get("ruleguid")
+                rule_guid = condition.get("ruleguid") or condition.get("ruleguid")
                 if rule_guid and str(rule_guid) not in event_refs:
                     result.err(
                         str(path),
-                        f"transition[{ti}].workflowTransitionCondition[{ci}].ruleGuid 引用不存在的动作流: {rule_guid}",
+                        f"transition[{ti}].workflowTransitionCondition[{ci}].ruleguid 引用不存在的动作流: {rule_guid}",
                     )
 
 
-def validate_cross_refs(metadata_dir: Path, result: ValidationResult) -> None:
-    """跨文件引用校验：appref、mis 字典引用等."""
-    p = str(metadata_dir)
-    if not metadata_dir.is_dir() or metadata_dir.name != "metadata":
-        result.err(p, "--check-refs 需要传入 metadata 目录")
+def validate_pagedesigne_pagetag_uniqueness(metadata_dir: Path, result: ValidationResult) -> None:
+    """校验同应用下所有 pagedesigne yml 的 pagetag 唯一."""
+    page_dir = metadata_dir / "pagedesigne"
+    if not page_dir.is_dir():
         return
+    seen: dict[str, Path] = {}
+    candidates = list(page_dir.glob("*.pagedesigne.yml")) + list(page_dir.glob("*.json"))
+    for path in candidates:
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        match = re.search(r'"pagetag"\s*:\s*"([^"]+)"', content)
+        if not match:
+            continue
+        tag = match.group(1)
+        if tag in seen:
+            result.err(
+                str(path),
+                f"pagetag '{tag}' 与 {seen[tag].name} 重复（应用内必须唯一）",
+            )
+        else:
+            seen[tag] = path
+
+
+def validate_cross_refs(metadata_dir: Path, result: ValidationResult) -> None:
+    """跨文件引用校验：appref、mis 字典引用等。
+
+    支持新结构（应用根目录直接含 appinfo.lowcode.yml + 子目录）和老结构（metadata/）。
+    """
+    p = str(metadata_dir)
+    if not metadata_dir.is_dir():
+        result.err(p, "--check-refs 需要传入应用根目录或老结构 metadata/ 目录")
+        return
+    # 简单识别：含 appinfo.lowcode.yml 或任意一个资产子目录就视为合法
+    KNOWN_ASSETS = {"codeitem", "mis", "module", "event", "workflow", "pagedesigne", "api"}
+    has_appinfo = (metadata_dir / "appinfo.lowcode.yml").is_file()
+    has_assets = any((metadata_dir / a).is_dir() for a in KNOWN_ASSETS)
+    if not (has_appinfo or has_assets or metadata_dir.name == "metadata"):
+        result.err(p, "--check-refs 目标既不含 appinfo.lowcode.yml 也无任何资产子目录，疑似传错路径")
+        return
+    if metadata_dir.name == "metadata":
+        result.warn(
+            p,
+            "检测到老结构 metadata/。新结构已去掉 metadata 层，建议把内部资产迁到 <apptag>/ 下。",
+        )
     current_inventory = inventory_assets(metadata_dir)
     validate_appref_refs(metadata_dir, current_inventory, result)
     validate_mis_codeitem_refs(metadata_dir, current_inventory, result)
     validate_workflow_ruleguid_refs(metadata_dir, current_inventory, result)
+    validate_pagedesigne_pagetag_uniqueness(metadata_dir, result)
 
 
 def cli():

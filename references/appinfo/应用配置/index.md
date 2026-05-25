@@ -2,16 +2,16 @@
 
 ## 1. 资产定位与边界
 
-每个低代码应用 metadata 目录下**必备一份** `appinfo.lowcode.yml`，是整个应用的"身份证"。
+每个低代码应用 应用根目录下**必备一份** `appinfo.lowcode.yml`，是整个应用的"身份证"。
 
 - 本资产解决：定义应用的身份信息（开发商、应用名称、应用标识、套件归属）与基础配置
 - 不在本资产范围内的事：引用其他应用资产的详细配置（由 `appref` 资产负责）；模块、数据模型、页面设计等具体业务定义
-- 与 metadata 目录的对应关系：`metadata/<apptag>/appinfo.lowcode.yml`
+- 与 应用根目录的对应关系：`<apptag>/appinfo.lowcode.yml`
 
 ### 文件位置
 
 ```
-<metadata>/appinfo.lowcode.yml
+<app-root>/appinfo.lowcode.yml
 ```
 
 固定文件名，不带 type 标识（不像其他 yml 第一行有 `type:`）。
@@ -191,11 +191,11 @@ META-INF/resources/abccompany/.../  → developerstag: abccompany
 
 ### `apptag` 与目录关系
 
-`apptag` 必须等于该 yml 所在目录（`metadata` 的父目录）的名字。例如：
+`apptag` 必须等于该 yml 所在目录（`<apptag>` 目录）的名字。例如：
 
 ```
-.../xmlx/metadata/appinfo.lowcode.yml → apptag: xmlx
-.../purchaseproject/metadata/appinfo.lowcode.yml → apptag: purchaseproject
+.../xmlx/appinfo.lowcode.yml → apptag: xmlx
+.../purchaseproject/appinfo.lowcode.yml → apptag: purchaseproject
 ```
 
 不一致时设计器会无法识别应用，**必须严格对齐**。

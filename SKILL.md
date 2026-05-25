@@ -1,6 +1,6 @@
 ---
 name: lowcode-dsl-gen
-description: 生成与维护 Epoint 低代码线下应用的 YAML 元数据，覆盖 metadata/ 下 8 类资产：appinfo、appref、codeitem、mis、module、workflow、event、pagedesigne。按主体架构 → 基本信息 → codeitem → mis → module → pagedesigne → workflow → event 的固定顺序分阶段确认；批准前只写 .lowcode-plans/<apptag>-plan.md，不落 metadata、不调脚本。何时用：用户提到"低代码应用 / lowcode yml / 应用元数据 / pagedesign(e) / 页面设计器 / mis 表 / codeitem yml / 工作流 yml / 审批流 / 流程设计 / 外部方法 / 流转条件 / 动作流 yml / 动作流 DSL / event DSL / 接口编排 / webhook / 定时任务触发 / 应用脚手架 / 在 xxx 应用下加一个 yyy"，或工程里出现 META-INF/resources/.../metadata/ 目录
+description: 生成与维护 Epoint 低代码线下应用的 YAML 元数据，覆盖应用根 `<apptag>/` 下 8 类资产：appinfo、appref、codeitem、mis、module、workflow、event、pagedesigne。按主体架构 → 基本信息 → codeitem → mis → module → pagedesigne → workflow → event 的固定顺序分阶段确认；批准前只写 .lowcode-plans/<apptag>-plan.md，不落应用资产、不调脚本。何时用：用户提到"低代码应用 / lowcode yml / 应用元数据 / pagedesign(e) / 页面设计器 / mis 表 / codeitem yml / 工作流 yml / 审批流 / 流程设计 / 外部方法 / 流转条件 / 动作流 yml / 动作流 DSL / event DSL / 接口编排 / webhook / 定时任务触发 / 应用脚手架 / 在 xxx 应用下加一个 yyy"，或工程里出现 META-INF/resources/.../<apptag>/ 目录
 license: MIT
 metadata:
   author: Epoint
@@ -9,7 +9,7 @@ metadata:
 
 # Epoint 低代码 YAML 生成与维护
 
-通过自然语言对话或需求材料，**渐进式收集应用元数据**，生成或维护 `META-INF/resources/<开发商>/<租户>/<独立单位>/<分类...>/<应用标识>/metadata/` 目录下完整的 YAML 元数据集，覆盖 8 类组件。
+通过自然语言对话或需求材料，**渐进式收集应用元数据**，生成或维护 `META-INF/resources/<开发商>/<租户>/<独立单位>/<分类...>/<应用标识>/` 目录下完整的 YAML 元数据集，覆盖 8 类组件。
 
 ## Role（角色定位）
 
@@ -30,9 +30,9 @@ metadata:
    - `current_stage` / `confirmed_stages` / `pending_stages` / `next_question`
    - `approval_status`（默认 `pending`）
    - `approval_text`（默认空字符串）
-   - 目标 metadata 目录、资产清单、脚本命令、校验命令、待确认问题
+   - 目标 应用根目录、资产清单、脚本命令、校验命令、待确认问题
 3. **`approval_status` 仅在用户明确说"批准创建 / 按计划生成 / 可以落盘"等语义后**改为 `approved`，并把用户原文记录到 `approval_text`。模糊回复（"嗯"、"好像可以"、"你看着办"）**不算批准**，继续追问。
-4. **`pending` 状态下禁止**调用 `scripts/scaffold_app.py`、`scripts/add_codeitem.py`、`scripts/add_mis_field.py`、`scripts/add_event.py`、`scripts/add_module.py`、`scripts/add_workflow.py`、`scripts/add_pagedesigne.py`，**禁止写 metadata**。
+4. **`pending` 状态下禁止**调用 `scripts/scaffold_app.py`、`scripts/add_codeitem.py`、`scripts/add_mis_field.py`、`scripts/add_event.py`、`scripts/add_module.py`、`scripts/add_workflow.py`、`scripts/add_pagedesigne.py`，**禁止写应用资产**。
 5. **非交互模式**（如 `codex exec` / CI / 无人值守 session）：若无法等待用户批准，停在生成计划文档这一步，回报"等待人工批准"，**不要假装已批准**。
 6. **资产级快速通道也走计划文档门禁**："快速"只表示减少追问范围，不表示跳过计划和批准。
 
@@ -40,7 +40,7 @@ metadata:
 
 ## 作业边界（硬约束）
 
-1. **可写区域受限**：批准前只能创建/修改 `.lowcode-plans/<apptag>-plan.md`；批准后只能在 `<工程根>/<action 子工程>/src/main/resources/META-INF/resources/<计算路径>/metadata/` 内创建/修改文件。`<计算路径>` = `<开发商>/[<租户>/]/[<独立单位>/]/[<分类...>/]/<应用标识>`。
+1. **可写区域受限**：批准前只能创建/修改 `.lowcode-plans/<apptag>-plan.md`；批准后只能在 `<工程根>/<action 子工程>/src/main/resources/META-INF/resources/<计算路径>/` 内创建/修改文件。`<计算路径>` = `<开发商>/[<租户>/]/[<独立单位>/]/[<分类...>/]/<应用标识>`。
 2. **禁止移动/删除已有目录**：发现已存在 `appinfo.lowcode.yml` 时，先读出来确认 apptag/developerstag，再决定走"修改"还是另起新应用。
 3. **type 标识必须保留**：所有 yml 第一行的 `type:` 是渲染器二次校验依据，不能省略或写错。固定标识：`codeitem` / `mis` / `module` / `event` / `workflow`；appinfo/appref 不带 type。
 4. **不要凭直觉造字段**：每类 yml 的字段集合在对应 `references/<asset>/<中文目录>/index.md` 有完整白名单。**任何字段填写前先读对应 references**；查不到就向用户确认。
@@ -86,13 +86,15 @@ metadata:
 |------|------|------------------------|
 | 用户给出需求文档/会议纪要/自然语言说"完整生成一个应用" | **D：整应用生成** | `references/whole-app-workflow.md` |
 | 用户明确说"新建/创建一个应用"，且工程里没有对应 apptag 目录 | **A：从零创建** | `references/directory-structure.md` + `references/appinfo/应用配置/index.md` |
-| 用户给出已有 apptag / 在已有 metadata 目录里追加内容 | **B：修改/补充** | `references/directory-structure.md` + 对应 `<asset>/<中文目录>/index.md` |
+| 用户给出已有 apptag / 在已有 应用根目录里追加内容 | **B：修改/补充** | `references/directory-structure.md` + 对应 `<asset>/<中文目录>/index.md` |
 | 用户直接说"加一个代码项/动作流/数据表..."且能从语境识别 apptag | **C：资产级快速通道** | 对应 `<asset>/<中文目录>/index.md` |
 | 信息不足以判断 | 直接问用户，**不要猜** | — |
 
 2. **定位工程根 + action 子工程**：找最近的包含 `pom.xml` 且有 `src/main/resources/META-INF/resources/` 的子工程（通常是 `xxx-action/` 或 `epoint-ipd-action/`）。多个 action 子工程时问用户。
 3. **只读必要的 references**：根据这一轮要做的资产类型，**只读对应那一两个文档**。
 4. **每一步信息齐了才往下走**，**不要重复读已经看过的文件**。
+
+> **动作流主动建议边界**：用户提到列表 / 详情 / 增删改时**不要主动建议生成 event**——这些走 MIS 接口或 REST 接口标准方法。当前阶段 skill **只把"状态变更联动"（dispatch / approve / reject / archive / cancel / submit / revoke，需同时改状态位、写日志、发消息）作为主动建议进入 event 阶段的场景**；跨系统推送拉取、定时同步、工作流回调、多节点编排属于"高级场景"，仅当用户明确表达诉求时才进入。详见 `references/event/动作流/index.md` § 1「✅ 何时需要动作流 / ❌ 何时不要动作流」。
 
 > 各模式的详细对话脚本（A.1 字段渐进式收集、A.2 创建计划模板、A.3 多选式资产菜单、B.1 资产清单展示、C 资产级快速解析、D 应用蓝图中间产物）见 `references/directory-structure.md` 的「触发模式细节」节和 `references/appinfo/应用配置/index.md`、`references/whole-app-workflow.md`。
 
@@ -103,8 +105,8 @@ metadata:
 | `codeitem` | 名称、每个子项的 `codetext`/`codevalue`、排序策略 | 只追问，**不调** `add_codeitem.py` |
 | `mis` | 表名、中文说明、主键策略、字段名/类型/长度/说明、必填/唯一、是否绑定 codeitem | 只追问，**不调** `add_mis_field.py --create` |
 | `pagedesigne` | 页面标题、设备类型（默认 desktop，**仅当用户明确说"移动端 / 小屏 / 手机端 / H5"等场景才切 mobile**）、页面类型（list/form/detail/custom）、主接口、字段列表 | 设备未明确时主动给"建议 desktop"并按编号问；不要默认按移动端生成 |
-| `workflow` | 用户**明确要求**审批流/工作流；需确认流程能力、外部方法/事件是否关联动作流 ruleGuid、自由流程是否禁用退回 | 未明确要求时**不进入** workflow 阶段 |
-| `event` | 用户**明确要求**动态 API/动作流/接口编排；或 workflow 的 ruleGuid 计划引用动作流 | 未明确要求时**不进入** event 阶段，目录留空 |
+| `workflow` | 用户**明确要求**审批流/工作流；需确认流程能力、外部方法/事件是否关联动作流 ruleGuid、自由流程是否禁用退回；**[spec v2 可选]** 用户提到"字段权限/只读字段/字段隐藏/通过率/会签 X%/超时提醒/短信通知/多人锁定时长/小程序规则"等关键词时，主动追问对应字段需求（通过 `--activity-materials-json` / `--approve-pass-rate-json` / `--activity-extra-json` 注入） | 未明确要求时**不进入** workflow 阶段 |
+| `event` | 用户**明确要求**动态 API/动作流/接口编排，且当前默认主动建议的场景仅"状态变更联动"（dispatch / approve / reject / archive / cancel / submit / revoke）；跨系统推送拉取、定时同步、工作流回调、多节点编排属于"高级场景"，仅在用户明确表达诉求时才进入；或 workflow 的 ruleGuid 计划引用动作流 | **❌ 标准 CRUD（list/detail/save/delete）不要主动建议生成 event**；未明确要求或属于标准接口时**不进入** event 阶段，目录留空 |
 
 `add_codeitem.py` 和 `add_mis_field.py --create` 在缺关键信息时会**直接报错退出**（除非显式加 `--allow-empty` / `--allow-empty-fields`）。这两个 allow 开关默认禁用，AI **不应主动使用**，必须先把子项/字段问清楚再调脚本。
 
@@ -160,8 +162,8 @@ metadata:
 ## 质量门禁
 
 - **单文件**：`python scripts/validate_yml.py <文件>`
-- **修改已有应用**：`python scripts/inventory_metadata.py --metadata <metadata>` + 相关文件校验
-- **整应用生成**：`python scripts/validate_yml.py --strict --check-refs <metadata>`
+- **修改已有应用**：`python scripts/inventory_metadata.py --app-root <app-root>` + 相关文件校验
+- **整应用生成**：`python scripts/validate_yml.py --strict --check-refs <app-root>`
 - **页面设计器**：校验 `events/source/model/textModel/actions.steps` 引用闭合
 - **appref/mis 引用**：用 `--check-refs` 检查 `appref` 和 `datasourceCodename`
 
@@ -172,15 +174,15 @@ metadata:
 | 脚本 | 用途 |
 |------|------|
 | `scripts/scaffold_app.py` | 新建应用骨架（建目录 + appinfo + 可选 appref） |
-| `scripts/path_resolver.py` | 给定 apptag 算 metadata 绝对路径 |
-| `scripts/add_codeitem.py` | 在指定 metadata 目录追加一个代码项 |
+| `scripts/path_resolver.py` | 给定 apptag 算应用根目录绝对路径 |
+| `scripts/add_codeitem.py` | 在指定 应用根目录追加一个代码项 |
 | `scripts/add_mis_field.py` | 新建 mis 表或追加字段 |
 | `scripts/add_module.py` | 新建模块/菜单 yml |
 | `scripts/add_event.py` | 新建标准动作流 yml |
 | `scripts/add_workflow.py` | 新建工作流（自动生成 5 类节点 + workflowConfig + workflowPvMisTableSet） |
 | `scripts/add_pagedesigne.py` | 新建页面设计器 Core Schema yml（内容仍为 JSON 文本） |
-| `scripts/inventory_metadata.py` | 列出现有 metadata 资产清单 |
-| `scripts/validate_yml.py` | 静态校验某个文件或整个 metadata 目录 |
+| `scripts/inventory_metadata.py` | 列出现有应用资产清单 |
+| `scripts/validate_yml.py` | 静态校验某个文件或整个 应用根目录 |
 | `scripts/check_dsl.py` | 动作流 DSL 结构/节点/连线/资产校验 🆕 |
 
 每个脚本都内置 `--help`，参数缺失会自报使用方法。**完整调用示例与参数 cheatsheet** 见 `references/directory-structure.md` 的「脚本调用 cheatsheet」节。
@@ -205,7 +207,7 @@ metadata:
 - 应用：xmlx (项目立项)
 - 操作：新增 codeitem「审核状态」
 - 文件：
-  - <绝对路径>/metadata/codeitem/审核状态.codeitem.yml （新建）
+  - <绝对路径>/codeitem/审核状态.codeitem.yml （新建）
 - 校验：通过 (validate_yml.py 0 errors)
 - 后续建议：可在对应 mis 字段的 datasourceCodename 上引用「审核状态」
 ```
@@ -226,7 +228,7 @@ metadata:
 
 1. **错三次就停**：同一个脚本/命令连续失败 3 次立即停止，回报根因（参数错、依赖缺、约束冲突），不要无限调参。
 2. **批准必须明确语义**：能列编号选项就列，不要给 yes/no；批准必须是用户**明确语义**（"批准创建 / 按计划生成 / 可以落盘"），模糊回复（"嗯"、"好像可以"）一律继续追问。
-3. **路径用绝对路径**：调脚本前先 `path_resolver.py --apptag <tag>` 算好 metadata 绝对路径再传，不要让脚本去猜相对路径。
+3. **路径用绝对路径**：调脚本前先 `path_resolver.py --apptag <tag>` 算好应用根目录绝对路径再传，不要让脚本去猜相对路径。
 4. **JSON 入参全部用 `parse_json_arg`**：所有 `--xxx-json` 参数必须经 `_common.parse_json_arg(value, expected_type=list, label=...)`，不要直接 `json.loads(args.xxx)`，否则字符串会被当成 list 逐字符遍历（已踩过的坑）。
 5. **Schema 引用先检查再生成**：pagedesigne 里 `model` / `source` / `events` / `actions.steps[].use` 都要回查到 `models` / `resources` / `actions` 的对应 id，引用闭环再落盘；落盘后必跑 `validate_yml.py --check-refs`。
 6. **工作流字段命名用下划线**：transition / 按钮字段统一用下划线命名（如 `is_targettransactor_editable`、`is_showasoperationbutton`、`is_ShowOpinionTemplete`），不要用旧驼峰；详见 `references/workflow/工作流/基础骨架/03-流转关系.md` 与 `references/workflow/工作流/基础骨架/02-活动按钮.md`。`scripts/add_workflow.py` 已默认产出符合规范的字段名。
