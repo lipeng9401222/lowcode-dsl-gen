@@ -1,0 +1,9 @@
+# 引用其他应用的组件实例
+# 每项必须包含 engineguid 和 name
+# engineguid 取值: codeitem / mis / module / workflow / event / pagedesigne
+
+- engineguid: codeitem
+  # 组件实例名称（代码项 name 或 数据表 tableName）
+  name: [{{REF_CODEITEM_NAMES}}]
+  # 来源应用的 apptag；不填表示从平台公共应用引用
+  sourceAppTag: common

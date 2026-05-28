@@ -1,0 +1,25 @@
+.DS_Store
+dsl-gen-api/
+ycsq/
+
+# Kiro 本地工作区（spec 草稿、任务清单、配置等），不进版本库
+.kiro/
+
+# ============================================================
+# skill 仓库本身只承载 skill 资产（SKILL.md / references / scripts /
+# assets / docs / evals），不应承载任何"应用产物"或"上次会话的计划文档"。
+# 历史曾出现 ipdmanage/ 与 ipdmanage-plan.md 落到 skill 目录里的情况，
+# 会污染后续会话（被当作官方示例引用）。
+# ============================================================
+
+# 应用产物（资产目录直接落在 skill 根，是误用）
+/ipdmanage/
+/xmlx/
+/purchaseproject/
+
+# 历次会话生成的计划文档（应该留在用户工程的 .lowcode-plans/ 下，不该入 skill 仓库）
+/*-plan.md
+.lowcode-plans/
+
+# 实验性 / 临时目录
+/CascadeProjects/

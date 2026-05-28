@@ -1,0 +1,409 @@
+# 固定标识
+type: event
+app:
+  mode: "actflow"
+  use_icon_as_answer_icon: false
+  icon: ""
+  name: "{{EVENT_NAME}}"
+  sign: "{{EVENT_SIGN}}"
+  description: ""
+  icon_background: ""
+  id: "{{EVENT_ID}}"
+  rowguid: "{{EVENT_ID}}"
+  created_at: {{CREATED_AT}}
+  code: "{{EVENT_CODE}}"
+kind: "app"
+version: "3.0"
+dependencies: []
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    text_to_speech:
+      enabled: false
+      voice: ""
+      language: ""
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    retriever_resource:
+      enabled: true
+    opening_statement: ""
+    suggested_questions_after_answer:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    file_upload:
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - "local_file"
+        - "remote_url"
+      allowed_file_types:
+      - "image"
+      number_limits: 3
+      allowed_file_extensions:
+      - ".JPG"
+      - ".JPEG"
+      - ".PNG"
+      - ".GIF"
+      - ".WEBP"
+      - ".SVG"
+      allowed_file_upload_methods:
+      - "local_file"
+      - "remote_url"
+      enabled: false
+  graph:
+    nodes:
+
+    # 节点 1：Webhook 触发
+    - data:
+        variables: []
+        actionData:
+          panelPath: "frame-webhook/frame-webhook"
+          action: "webhookdetail"
+          formData:
+          - name: "webHookUrl"
+            valueMode: "fixed"
+            value: "{{WEBHOOK_URL}}"
+          - name: "identification"
+            valueMode: "fixed"
+            value: "{{EVENT_SIGN}}"
+          - name: "request"
+            valueMode: "fixed"
+            value:
+              requestHeaders:
+              - defaultValue: "application/json;charset:utf-8;"
+                name: "Content-Type"
+              requestBody: []
+              requestBodyType: "application/json"
+          category: "webHook"
+          panelType: ""
+        type: "start"
+        title: "Webhook触发"
+        isAction: true
+        selected: false
+        desc: ""
+      targetPosition: "left"
+      width: 244
+      sourcePosition: "right"
+      positionAbsolute:
+        x: 80
+        y: 282
+      id: "{{NODE_START_ID}}"
+      position:
+        x: 80
+        y: 282
+      type: "custom"
+      selected: false
+      height: 54
+
+    # 节点 2：初始化上下文
+    - data:
+        variables: []
+        error_handle_mode: "terminated"
+        start_node_id: ""
+        type: "biz-action"
+        title: "初始化上下文"
+        actionContext: []
+        output_selector: []
+        iterator_selector: []
+        actionData:
+          panelPath: "common/biz-action"
+          action: "commonInitContext"
+          formData:
+          - panelMode: "fixed"
+            name: "variableClassKey"
+            valueMode: "fixed"
+            value: "{{APPTAG}}"
+          - panelMode: "fixed"
+            name: "businessContext"
+            valueMode: "fixed"
+            value: "{{CONTEXT_CLASS}}"
+          category: "biz_action"
+          panelType: ""
+        isAction: true
+        is_parallel: false
+        selected: false
+        desc: ""
+        parallel_nums: 10
+      targetPosition: "left"
+      width: 244
+      sourcePosition: "right"
+      positionAbsolute:
+        x: 384
+        y: 282
+      id: "{{NODE_INIT_ID}}"
+      position:
+        x: 384
+        y: 282
+      type: "custom"
+      selected: false
+      height: 54
+
+    # 节点 3：接口鉴权
+    - data:
+        variables: []
+        error_handle_mode: "terminated"
+        start_node_id: ""
+        type: "biz-action"
+        title: "接口鉴权"
+        actionContext: []
+        output_selector: []
+        iterator_selector: []
+        actionData:
+          panelPath: "common/biz-action"
+          action: "commonAuthorize"
+          formData:
+          - name: "variableClassKey"
+            valueMode: "fixed"
+            value: "{{APPTAG}}"
+          category: "biz_action"
+          panelType: ""
+        isAction: true
+        is_parallel: false
+        selected: false
+        desc: ""
+        parallel_nums: 10
+      targetPosition: "left"
+      width: 244
+      sourcePosition: "right"
+      positionAbsolute:
+        x: 688
+        y: 282
+      id: "{{NODE_AUTH_ID}}"
+      position:
+        x: 688
+        y: 282
+      type: "custom"
+      selected: false
+      height: 54
+
+    # 节点 4：业务方法调用
+    - data:
+        variables: []
+        error_handle_mode: "terminated"
+        start_node_id: ""
+        type: "biz-action"
+        title: "{{BIZ_TITLE}}"
+        actionContext: []
+        output_selector: []
+        iterator_selector: []
+        actionData:
+          panelPath: "common/biz-action"
+          action: "{{BIZ_ACTION_NAME}}"
+          formData:
+          - name: "context"
+            formula:
+              expression: 'RuleParamUtil.parserParam(s{{NODE_INIT_ID}}Context,"data.{{APPTAG}}")'
+              header: ""
+              text: "初始化上下文.{{APPTAG}}"
+              value:
+              - name: "初始化上下文.{{APPTAG}}"
+                id: "{{FORMULA_VALUE_ID}};s{{NODE_INIT_ID}}Context.data.{{APPTAG}}"
+                value: "s{{NODE_INIT_ID}}Context.data.{{APPTAG}}"
+            valueMode: "formula"
+            value: ""
+          category: "biz_action"
+          panelType: ""
+        isAction: true
+        is_parallel: false
+        selected: false
+        desc: ""
+        parallel_nums: 10
+      targetPosition: "left"
+      width: 244
+      sourcePosition: "right"
+      positionAbsolute:
+        x: 992
+        y: 282
+      id: "{{NODE_BIZ_ID}}"
+      position:
+        x: 992
+        y: 282
+      type: "custom"
+      selected: false
+      height: 54
+
+    # 节点 5：构建成功结果集
+    - data:
+        variables: []
+        error_handle_mode: "terminated"
+        start_node_id: ""
+        type: "biz-action"
+        title: "构建成功结果集（msg、custom）"
+        actionContext: []
+        output_selector: []
+        iterator_selector: []
+        actionData:
+          panelPath: "common/biz-action"
+          action: "RestResult_success"
+          formData:
+          - name: "msg"
+            formula: {}
+            valueMode: "fixed"
+            value: "操作成功"
+          - name: "custom"
+            formula:
+              expression: 'RuleParamUtil.parserParam(s{{NODE_BIZ_ID}}Context,"data.result")'
+              header: ""
+              text: "{{BIZ_TITLE}}.result"
+              value:
+              - name: "{{BIZ_TITLE}}.result"
+                id: "{{FORMULA_RESULT_ID}};s{{NODE_BIZ_ID}}Context.data.result"
+                value: "s{{NODE_BIZ_ID}}Context.data.result"
+            valueMode: "formula"
+            value: ""
+          category: "biz_action"
+          panelType: ""
+        isAction: true
+        is_parallel: false
+        selected: false
+        desc: ""
+        parallel_nums: 10
+      targetPosition: "left"
+      width: 244
+      sourcePosition: "right"
+      positionAbsolute:
+        x: 1296
+        y: 282
+      id: "{{NODE_RESULT_ID}}"
+      position:
+        x: 1296
+        y: 282
+      type: "custom"
+      selected: false
+      height: 54
+
+    # 节点 6：结束
+    - data:
+        error_handle_mode: "terminated"
+        start_node_id: ""
+        type: "end-vue"
+        title: "结束"
+        actionContext: []
+        output_selector: []
+        iterator_selector: []
+        actionData:
+          panelPath: "common/end"
+          action: "end"
+          formData:
+          - name: "trigerType"
+            valueMode: "fixed"
+            value: "webhook"
+          - name: "reminderType"
+            valueMode: "fixed"
+            value: ""
+          - name: "responseParams"
+            valueMode: "fixed"
+            value:
+            - UID: "root"
+              showName: "根节点"
+              children: []
+              defaultValue:
+                formula:
+                  expression: 'RuleParamUtil.parserParam(s{{NODE_RESULT_ID}}Context,"data.result")'
+                  header: ""
+                  text: "构建成功结果集（msg、custom）.result"
+                  value:
+                  - name: "构建成功结果集（msg、custom）.result"
+                    id: "{{FORMULA_END_ID}};s{{NODE_RESULT_ID}}Context.data.result"
+                    value: "s{{NODE_RESULT_ID}}Context.data.result"
+                valueMode: "formula"
+                value: ""
+              name: "根节点"
+              ParentTaskUID: -1
+              type: "OBJECT"
+              required: true
+          category: ""
+        isAction: true
+        is_parallel: false
+        selected: false
+        desc: ""
+        parallel_nums: 10
+      targetPosition: "left"
+      width: 244
+      sourcePosition: "right"
+      positionAbsolute:
+        x: 1600
+        y: 282
+      id: "{{NODE_END_ID}}"
+      position:
+        x: 1600
+        y: 282
+      type: "custom"
+      selected: false
+      height: 54
+
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.7
+
+    edges:
+    - sourceHandle: "source"
+      data:
+        sourceType: "start"
+        isInIteration: false
+        targetType: "biz-action"
+        isInLoop: false
+      id: "{{NODE_START_ID}}-source-{{NODE_INIT_ID}}-target"
+      source: "{{NODE_START_ID}}"
+      type: "custom"
+      targetHandle: "target"
+      selected: false
+      target: "{{NODE_INIT_ID}}"
+      zIndex: 0
+    - sourceHandle: "source"
+      data:
+        sourceType: "biz-action"
+        isInIteration: false
+        targetType: "biz-action"
+        isInLoop: false
+      id: "{{NODE_INIT_ID}}-source-{{NODE_AUTH_ID}}-target"
+      source: "{{NODE_INIT_ID}}"
+      type: "custom"
+      targetHandle: "target"
+      selected: false
+      target: "{{NODE_AUTH_ID}}"
+      zIndex: 0
+    - sourceHandle: "source"
+      data:
+        sourceType: "biz-action"
+        isInIteration: false
+        targetType: "biz-action"
+        isInLoop: false
+      id: "{{NODE_AUTH_ID}}-source-{{NODE_BIZ_ID}}-target"
+      source: "{{NODE_AUTH_ID}}"
+      type: "custom"
+      targetHandle: "target"
+      selected: false
+      target: "{{NODE_BIZ_ID}}"
+      zIndex: 0
+    - sourceHandle: "source"
+      data:
+        sourceType: "biz-action"
+        isInIteration: false
+        targetType: "biz-action"
+        isInLoop: false
+      id: "{{NODE_BIZ_ID}}-source-{{NODE_RESULT_ID}}-target"
+      source: "{{NODE_BIZ_ID}}"
+      type: "custom"
+      targetHandle: "target"
+      selected: false
+      target: "{{NODE_RESULT_ID}}"
+      zIndex: 0
+    - sourceHandle: "source"
+      data:
+        sourceType: "biz-action"
+        isInIteration: false
+        targetType: "end-vue"
+        isInLoop: false
+      id: "{{NODE_RESULT_ID}}-source-{{NODE_END_ID}}-target"
+      source: "{{NODE_RESULT_ID}}"
+      type: "custom"
+      targetHandle: "target"
+      selected: false
+      target: "{{NODE_END_ID}}"
+      zIndex: 0
