@@ -1,0 +1,10 @@
+type: mis
+name: misleanbad
+description: MIS 瘦字段负例
+tableName: misleanbad
+fields:
+  - name: customer_name
+    type: nvarchar
+    description: 客户姓名
+    length: 50
+relations: []

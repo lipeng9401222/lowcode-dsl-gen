@@ -1,0 +1,24 @@
+version: "1.0"
+description: "Lightweight schema for lowcode-dsl-gen IR. validate_ir.py is the executable validator."
+required:
+  - version
+  - application
+  - assets
+properties:
+  version:
+    type: string
+    enum: ["1.0"]
+  application:
+    type: object
+    required: [apptag, applicationname, developerstag, kitid]
+  assets:
+    type: array
+    item:
+      type: object
+      required: [id, type, status, spec]
+      type_enum: [app-shell, codeitem, mis, module, pagedesigne, workflow, event]
+      status_enum: [pending, generating, validating, done, failed, skipped]
+  open_questions:
+    type: array
+  validation:
+    type: object

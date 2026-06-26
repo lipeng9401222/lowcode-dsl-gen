@@ -1,0 +1,114 @@
+version: "1.0"
+task:
+  mode: "whole-app"
+  requestedAssetTypes: ["app-shell", "mis", "pagedesigne"]
+  sources:
+    mode: "user_confirmed"
+  sourceDetails:
+    mode:
+      questionId: "q-mode"
+      answer: "帮我完整生成一个项目登记低代码应用，只需要基础信息、项目表和列表页"
+application:
+  apptag: "projectreg"
+  applicationname: "项目登记"
+  developerstag: "epoint"
+  kitid: "businessprocess"
+  tenantguid: ""
+  baseouguid: ""
+  categories: []
+  sources:
+    developerstag: "user_confirmed"
+    kitid: "user_confirmed"
+    tenantguid: "safe_default"
+    baseouguid: "safe_default"
+    categories: "user_confirmed"
+  sourceDetails:
+    developerstag:
+      questionId: "q-basic"
+    kitid:
+      questionId: "q-basic"
+    categories:
+      questionId: "q-basic"
+    tenantguid:
+      reason: "用户未要求多租户，空值作为安全默认"
+    baseouguid:
+      reason: "用户未要求独立单位，空值作为安全默认"
+assets:
+  - id: "asset-001"
+    type: "app-shell"
+    status: "pending"
+    dependencies: []
+    spec:
+      createDirs: ["codeitem", "mis", "module", "pagedesigne", "workflow"]
+      appref:
+        enabled: false
+        refs: []
+      sources:
+        appref: "user_confirmed"
+      sourceDetails:
+        appref:
+          questionId: "q-basic"
+      confirmations:
+        developerstag: { status: "confirmed", source: "user_confirmed", questionId: "q-basic" }
+        kitid: { status: "confirmed", source: "user_confirmed", questionId: "q-basic" }
+        categories: { status: "confirmed", source: "user_confirmed", questionId: "q-basic" }
+        appref: { status: "not_required", source: "user_confirmed", questionId: "q-basic" }
+    errors: []
+  - id: "asset-002"
+    type: "mis"
+    status: "pending"
+    dependencies: ["asset-001"]
+    spec:
+      tableName: "projectreg"
+      tableChineseName: "项目登记"
+      primaryKey: "rowguid"
+      fields:
+        - fieldName: "project_name"
+          fieldType: "nvarchar"
+          length: 200
+          chineseName: "项目名称"
+          mustfill: true
+    errors: []
+  - id: "asset-003"
+    type: "pagedesigne"
+    status: "pending"
+    dependencies: ["asset-002"]
+    spec:
+      title: "项目登记列表"
+      pagetag: "projectreg_list"
+      device: "desktop"
+      pageType: "list"
+      endpoint: "/api/projectreg"
+      fields:
+        - fieldName: "project_name"
+          chineseName: "项目名称"
+    errors: []
+open_questions:
+  - id: "q-mode"
+    target: "task"
+    field: "task.mode"
+    severity: "confirm"
+    question: "本次是否完整生成项目登记低代码应用？"
+    options: ["完整生成应用", "仅生成计划", "仅补充单资产"]
+    recommended: "完整生成应用"
+    status: "resolved"
+    answer: "完整生成一个项目登记低代码应用"
+    resolvedValue: "whole-app"
+  - id: "q-basic"
+    target: "application"
+    field: "application.basicInfo"
+    severity: "confirm"
+    question: "请确认开发商、套件、分类、租户/独立单位和应用引用配置。"
+    options: ["developerstag=epoint, kitid=businessprocess, 不分类, 不启用 appref", "需要调整"]
+    recommended: "developerstag=epoint, kitid=businessprocess, 不分类, 不启用 appref"
+    status: "resolved"
+    answer: "按推荐值"
+    resolvedValue:
+      developerstag: "epoint"
+      kitid: "businessprocess"
+      categories: []
+      appref:
+        enabled: false
+validation:
+  status: "pending"
+  reports: []

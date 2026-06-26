@@ -1,0 +1,51 @@
+{
+  "skill_name": "lowcode-gen-workflow",
+  "evals": [
+    {
+      "id": "workflow-simple",
+      "prompt": "使用 lowcode-gen-workflow 生成一个申请 -> 部门经理审批的普通审批流。",
+      "expectations": [
+        "判定 operationMode=create（仓库无同名流程）。",
+        "先校验 activities 列表（一个 apply + 至少一个 approve），再用 workflow_preview.py 出 Mermaid 预览。",
+        "默认直接传 CLI 参数：add_workflow.py --app-root --name --approvers --dry-run（不以 --from-ir 为默认路径）。",
+        "不手写 workflowVersion/activity/transition/workflowConfig 骨架。"
+      ]
+    },
+    {
+      "id": "workflow-condition",
+      "prompt": "请假天数 >= 3 走 BG 领导审批，否则直接结束。",
+      "expectations": [
+        "conditions 使用显式互补条件。",
+        "contexts.fieldname 与 [#=leave_days#] 占位符一致。",
+        "落盘后运行 validate_yml.py；仅当生成了 ir.yml（复杂整应用/审计）时才额外跑 --check-ir-consistency。"
+      ]
+    },
+    {
+      "id": "workflow-revise-plan",
+      "prompt": "刚才流程图里两个节点不对：把部门经理审批改成科室负责人审批，并删除财务审批。",
+      "expectations": [
+        "识别为 revise-plan，不重新抽取基础版流程。",
+        "更新同一个 workflow asset、同一份计划和 Mermaid 流程图预览。",
+        "不调用 add_workflow.py 落应用资产。"
+      ]
+    },
+    {
+      "id": "workflow-update-existing",
+      "prompt": "已有同名请假审批流程，帮我调整原流程节点，不要新增工作流。",
+      "expectations": [
+        "识别为 update-existing，并读取已有 .workflow.yml。",
+        "使用 update_workflow.py，而不是 add_workflow.py --force。",
+        "修改前后 processguid/processversionguid/version 完全一致。"
+      ]
+    },
+    {
+      "id": "workflow-existing-ambiguous",
+      "prompt": "检测到同名流程已存在时，用户只说“帮我生成一下这个审批流”。",
+      "expectations": [
+        "先确认新增独立流程还是修改原流程。",
+        "默认推荐修改原流程。",
+        "用户确认前不生成新的 processguid/processversionguid/version。"
+      ]
+    }
+  ]
+}

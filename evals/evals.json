@@ -1,0 +1,121 @@
+{
+  "skill_name": "lowcode-dsl-gen",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我根据一份需求文档生成用车申请低代码应用，里面会有主体架构、基本信息、审核状态代码项、车辆申请 mis 表、模块菜单、列表页、表单页、接口和审批流。先别落盘，按阶段一个一个确认。",
+      "expected_output": "先识别为整应用生成，说明计划/落盘门禁，按主体架构 -> 基本信息 -> codeitem -> mis -> module -> pagedesigne -> workflow -> event 的顺序推进，第一轮只问当前阶段。",
+      "files": [],
+      "expectations": [
+        "首轮输出明确提到固定分阶段顺序，且顺序包含主体架构、基本信息、codeitem、mis、module、pagedesigne、workflow、event。",
+        "首轮只围绕主体架构或基本信息提问，不提前索要 codeitem 子项、mis 字段、工作流节点等后续阶段明细。",
+        "首轮最多提出 3 个问题，并说明未批准前不写应用资产、不调用生成脚本。",
+        "首轮应创建或更新 .lowcode-plans/<apptag>-plan.md，并记录问题、选项和等待用户确认的状态。"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "帮我新建一个项目登记低代码应用，先把规划做出来。如果你当前的运行环境暴露了 ask_user_question / request_user_input / AskUserQuestion 之类的结构化问答工具，请优先用它来确认。",
+      "expected_output": "如果宿主真的暴露了结构化问答能力则可用之，但不强制 interaction_mode 字段；不论交互方式如何，必须按分阶段门禁推进，每轮 ≤3 题且只问当前阶段，批准前不写应用资产、不调脚本，并且把结构化问答的问题、选项、用户选择和确认结果同步写入计划文档。",
+      "files": [],
+      "expectations": [
+        "如果宿主暴露了结构化问答工具（例如 Codex Plan Mode 的 request_user_input 或 Claude Code 的 AskUserQuestion），允许调用；如果没有，使用自然语言问答即可。无论哪种方式，输出都不应宣称已切换 Plan Mode 或自报 interaction_mode 字段。",
+        "结构化或自然语言问题每轮不超过 3 个，且只围绕当前阶段（首轮限定在主体架构或基本信息）。",
+        "使用结构化问答时，也必须说明会把问题、选项、用户选择和确认结果写入 .lowcode-plans/<apptag>-plan.md 的对话确认记录。",
+        "确认选项不用 y/n，使用有语义的选择，例如批准生成、调整计划、暂不生成；批准前不调用 scripts/scaffold_app.py 或任何 add_*.py。"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "用 Trae 帮我生成项目登记应用，先别真正落盘，也不要调用生成脚本。",
+      "expected_output": "识别为计划门禁场景；未明确批准前只维护规划和对话确认记录，不写应用资产，不调用 scaffold_app.py 或 add_*.py。",
+      "files": [],
+      "expectations": [
+        "未出现对应用资产目录的写入操作。",
+        "未调用 scripts/scaffold_app.py 或任何 scripts/add_*.py 生成脚本。",
+        "输出明确说明需要先形成计划并等待“批准创建 / 按计划生成 / 可以落盘”等明确批准。"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "给 xmlx 应用加一个审核状态代码项。",
+      "expected_output": "定位为 codeitem 资产级快速通道，但因缺少代码子项，先追问 codetext/codevalue/排序策略，不调用 add_codeitem.py。",
+      "files": [],
+      "expectations": [
+        "输出追问代码项子项明细，例如 codetext、codevalue 或排序策略。",
+        "信息不完整时不调用 scripts/add_codeitem.py，不生成 codeitem 文件。",
+        "不跳到 mis、module、pagedesigne、workflow、event 等后续阶段。"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "给 xmlx 应用加一张项目登记表。",
+      "expected_output": "定位为 mis 资产级快速通道，但因缺少表结构，先追问英文表名、中文说明和字段清单，不调用 add_mis_field.py。",
+      "files": [],
+      "expectations": [
+        "输出追问英文表名、中文说明或字段清单。",
+        "字段不完整时不调用 scripts/add_mis_field.py，不生成 mis 文件。",
+        "不提前规划页面、动作流或工作流。"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "在 xmlx 应用下加一个采购立项列表页，字段有项目名称、采购方式、审核状态。先只看页面，不要展开别的资产。",
+      "expected_output": "定位已有应用并进入 pagedesigne 当前阶段；只补页面相关信息，不扩展到 codeitem/mis/module/workflow/event。",
+      "files": [],
+      "expectations": [
+        "输出识别当前阶段是 pagedesigne 或页面设计器。",
+        "只追问页面相关缺失信息，例如 endpoint、列表动作、页面标题或字段展示，不追问 codeitem/mis/module/workflow 明细。",
+        "计划中不会把 scripts/add_workflow.py 或 scripts/add_event.py 列入会运行脚本。"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "帮我新建一个项目登记低代码应用，只需要基础信息、项目表和列表页，暂时不要动作流和工作流。",
+      "expected_output": "计划中 workflow/event 明确标注不生成；只在用户后续明确要求时才进入 workflow 或 event 阶段。",
+      "files": [],
+      "expectations": [
+        "输出明确 event 不生成或仅保留目录，不列出 scripts/add_event.py。",
+        "输出明确 workflow 不生成或暂不进入，不列出 scripts/add_workflow.py。",
+        "仍按阶段确认主体架构、基本信息、mis 和 pagedesigne，不一次性落盘。"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "不开 Plan Mode，帮我完整生成一个合同备案低代码应用。你每次问我的问题、给我的选项、我的确认结果都要能在计划文件里追溯。",
+      "expected_output": "使用自然语言问答推进，但从第一轮开始创建或更新 .lowcode-plans/<apptag>-plan.md；每轮提问前记录问题和选项，用户回复后回填原文、解析结果和确认状态。",
+      "files": [],
+      "expectations": [
+        "输出明确说明即使不开 Plan Mode，也会维护 .lowcode-plans/<apptag>-plan.md 作为全过程追溯文件。",
+        "计划文档要求包含对话确认记录、阶段确认结果、生成计划、执行与校验记录。",
+        "每轮问题记录必须包含问题、选项、推荐说明或无推荐、状态 awaiting_user；收到回复后要更新用户原文、解析结果和确认状态。",
+        "未明确批准前不调用 scaffold_app.py 或 add_*.py，不写应用资产。"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "在 leavetest 应用下生成一个请假审批流程：申请后先到部门经理审批，请假天数大于等于3天再走 BG 领导审批，小于3天直接结束。请把流转条件和相关数据一起配好。",
+      "expected_output": "进入 workflow 阶段并识别出条件分支（请假天数>=3）。生成的 workflowContext 用规范字段名 fieldguid/fieldname/belongto/fieldtype/note，fieldname 必须等于流转条件 [#=leave_days#] 里的 leave_days，中文标签放 note；优先用 add_workflow.py --contexts-json + --conditions-json 生成，落盘后跑 validate_yml.py 且 0 error。",
+      "files": [],
+      "expectations": [
+        "识别为条件分支工作流，相关数据通过 --contexts-json、流转条件通过 --conditions-json 生成（不凭空手写扩展节点）。",
+        "生成的 workflowContext 字段名严格使用 fieldguid / fieldname / belongto / fieldtype / valuesource / note，绝不出现 contextguid / contextname / contexttext / ordernum 等捏造名。",
+        "workflowContext.fieldname 的值等于流转条件 leftvalue 里 [#=leave_days#] 的 leave_days；中文“请假天数”放在 note，而不是当作 fieldname。",
+        "belongto 与 fieldtype 必填且被填写；落盘后运行 scripts/validate_yml.py，错误数为 0 才回报完成。"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "在 leavetest 应用下生成请假审批流程，部门经理审批节点里请假天数字段只读、请假原因字段必填，其他按普通审批流处理。",
+      "expected_output": "进入 workflow 阶段并识别字段权限诉求。生成计划中必须使用 add_workflow.py --activity-materials-json 注入 workflowActivityMaterial + workflowActivityFieldAccess；字段权限节点使用规范字段 activitymaterialguid/rowguid/fieldname/fieldchinesename/accessright/accesstype 等，落盘后 validate_yml.py --strict 通过。",
+      "files": [],
+      "expectations": [
+        "识别“只读/必填字段”为字段权限触发词，不能忽略或手写零散字段。",
+        "字段权限通过 --activity-materials-json 生成 workflowActivityMaterial + workflowActivityFieldAccess。",
+        "workflowActivityMaterial 使用 activitymaterialguid / processversionguid / activityguid / materialguid / accessright / is_mustsubmit / submittype。",
+        "workflowActivityFieldAccess 使用 rowguid / activitymaterialguid / sqltablename / fieldname / fieldchinesename / accessright / accesstype。",
+        "落盘后运行 scripts/validate_yml.py --strict，错误数为 0 才回报完成。"
+      ]
+    }
+  ]
+}

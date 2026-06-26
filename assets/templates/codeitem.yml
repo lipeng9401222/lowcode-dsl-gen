@@ -1,0 +1,11 @@
+# 固定标识
+type: codeitem
+# 代码名称
+name: {{NAME}}
+# 代码说明
+description: {{DESCRIPTION}}
+# 代码子项列表
+items:
+  - codetext: {{ITEM_TEXT_1}}
+    codevalue: "{{ITEM_VALUE_1}}"
+    ordernumber: 1

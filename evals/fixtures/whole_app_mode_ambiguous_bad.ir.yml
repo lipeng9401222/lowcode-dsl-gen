@@ -1,0 +1,72 @@
+version: "1.0"
+task:
+  mode: "whole-app"
+  requestedAssetTypes: ["app-shell", "workflow"]
+  sources:
+    mode: "user_confirmed"
+  sourceDetails:
+    mode:
+      questionId: "q-mode"
+      answer: "apptag叫leavetest"
+application:
+  apptag: "leavetest"
+  applicationname: "请假测试"
+  developerstag: "epoint"
+  kitid: "businessprocess"
+  tenantguid: ""
+  baseouguid: ""
+  categories: []
+  sources:
+    developerstag: "user_confirmed"
+    kitid: "user_confirmed"
+    tenantguid: "safe_default"
+    baseouguid: "safe_default"
+    categories: "user_confirmed"
+  sourceDetails:
+    developerstag: { questionId: "q-basic" }
+    kitid: { questionId: "q-basic" }
+    tenantguid: { reason: "未启用多租户，空值作为安全默认" }
+    baseouguid: { reason: "未启用独立单位，空值作为安全默认" }
+    categories: { questionId: "q-basic" }
+assets:
+  - id: "app-leavetest"
+    type: "app-shell"
+    status: "pending"
+    dependencies: []
+    spec:
+      createDirs: ["workflow"]
+      appref:
+        enabled: false
+        refs: []
+      sources:
+        appref: "user_confirmed"
+      sourceDetails:
+        appref: { questionId: "q-basic" }
+    errors: []
+open_questions:
+  - id: "q-mode"
+    target: "task"
+    field: "task.mode"
+    severity: "confirm"
+    question: "本次是生成完整应用还是只补充工作流？"
+    options: ["完整应用", "只补充工作流"]
+    recommended: "只补充工作流"
+    status: "resolved"
+    answer: "apptag叫leavetest"
+    resolvedValue: "whole-app"
+  - id: "q-basic"
+    target: "application"
+    field: "application.basicInfo"
+    severity: "confirm"
+    question: "请确认应用基础信息。"
+    options: ["沿用默认值", "调整"]
+    recommended: "沿用默认值"
+    status: "resolved"
+    answer: "沿用默认值"
+    resolvedValue:
+      developerstag: "epoint"
+      kitid: "businessprocess"
+      categories: []
+validation:
+  status: "pending"
+  reports: []

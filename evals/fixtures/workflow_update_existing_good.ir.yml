@@ -1,0 +1,118 @@
+version: "1.0"
+task:
+  mode: "asset-fast"
+  requestedAssetTypes: ["workflow"]
+  sources:
+    mode: "user_confirmed"
+  sourceDetails:
+    mode:
+      questionId: "q-mode"
+      answer: "修改原请假审批流程，不新增工作流"
+application:
+  apptag: "ipdmanage"
+  applicationname: "IPD项目管理"
+  developerstag: "epoint"
+  kitid: "businessprocess"
+  tenantguid: ""
+  baseouguid: ""
+  categories: []
+  sources:
+    developerstag: "repo_inferred"
+    kitid: "repo_inferred"
+    tenantguid: "safe_default"
+    baseouguid: "safe_default"
+    categories: "repo_inferred"
+  sourceDetails:
+    developerstag:
+      repoEvidence:
+        path: "src/main/resources/META-INF/resources/epoint/ipdmanage/appinfo.lowcode.yml"
+    kitid:
+      repoEvidence:
+        path: "src/main/resources/META-INF/resources/epoint/ipdmanage/appinfo.lowcode.yml"
+    categories:
+      repoEvidence:
+        path: "src/main/resources/META-INF/resources/epoint/ipdmanage"
+    tenantguid:
+      reason: "现有 appinfo 未配置 tenantguid，空值作为安全默认"
+    baseouguid:
+      reason: "现有 appinfo baseouguid 为空，沿用空值作为安全默认"
+assets:
+  - id: "asset-workflow-update-001"
+    type: "workflow"
+    status: "pending"
+    dependencies: []
+    spec:
+      operationMode: "update-existing"
+      targetWorkflow:
+        file: "src/main/resources/META-INF/resources/epoint/ipdmanage/workflow/请假审批流程.workflow.yml"
+        processguid: "ba079040-e1a4-4be8-ac91-d7b9a0fa0a26"
+      processName: "请假审批流程"
+      processMode: "normal"
+      material: "请假申请表"
+      sqlTableName: "leaveapply"
+      pageTagForm: "leave_form"
+      pageTagDetail: "leave_detail"
+      renameActivities:
+        部门经理审批: "科室负责人审批"
+      activities:
+        - name: "申请"
+          type: "apply"
+        - name: "科室负责人审批"
+          type: "approve"
+          oldName: "部门经理审批"
+          transactorSource: "assignee"
+      contexts: []
+      conditions: []
+      methods: []
+      events: []
+      activityMaterials: []
+      activityExtra: []
+      approvePassRate: []
+      confirmations:
+        processGoal: { status: "confirmed", source: "user_confirmed", questionId: "q-wf-effect" }
+        activityChain: { status: "confirmed", source: "user_confirmed", questionId: "q-wf-effect" }
+        transactors: { status: "confirmed", source: "user_confirmed", questionId: "q-wf-effect" }
+        conditions: { status: "not_required", source: "user_confirmed", questionId: "q-wf-effect" }
+        pageTags:
+          status: "confirmed"
+          source: "repo_inferred"
+          repoEvidence:
+            paths:
+              - "src/main/resources/META-INF/resources/epoint/ipdmanage/pagedesigne/请假申请表.pagedesigne.yml"
+              - "src/main/resources/META-INF/resources/epoint/ipdmanage/pagedesigne/请假申请详情.pagedesigne.yml"
+        sqlTableName:
+          status: "confirmed"
+          source: "repo_inferred"
+          repoEvidence:
+            path: "src/main/resources/META-INF/resources/epoint/ipdmanage/mis/leaveapply.mis.yml"
+        fieldPermissions: { status: "not_required", source: "user_confirmed", questionId: "q-wf-effect" }
+        approvePassRate: { status: "not_required", source: "user_confirmed", questionId: "q-wf-effect" }
+        timeout: { status: "not_required", source: "user_confirmed", questionId: "q-wf-effect" }
+        eventLinkage: { status: "not_required", source: "user_confirmed", questionId: "q-wf-effect" }
+    errors: []
+open_questions:
+  - id: "q-mode"
+    target: "task"
+    field: "task.mode"
+    severity: "confirm"
+    question: "检测到已有请假审批流程，本次是新增独立流程还是修改原流程？"
+    options: ["修改原流程", "新增独立流程"]
+    recommended: "修改原流程"
+    status: "resolved"
+    answer: "修改原流程"
+    resolvedValue: "asset-fast/update-existing"
+  - id: "q-wf-effect"
+    target: "asset-workflow-update-001"
+    field: "workflow.confirmations"
+    severity: "blocking"
+    question: "请确认节点纠偏：部门经理审批改为科室负责人审批，删除后续审批节点。"
+    options: ["确认按此修改原流程", "继续调整"]
+    recommended: "确认按此修改原流程"
+    status: "resolved"
+    answer: "确认按此修改原流程"
+    resolvedValue:
+      operationMode: "update-existing"
+      activityChain: ["申请", "科室负责人审批"]
+validation:
+  status: "pending"
+  reports: []

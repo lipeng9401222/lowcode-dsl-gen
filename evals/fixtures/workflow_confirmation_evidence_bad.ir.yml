@@ -1,0 +1,94 @@
+version: "1.0"
+task:
+  mode: "asset-fast"
+  requestedAssetTypes: ["workflow"]
+  sources:
+    mode: "user_confirmed"
+  sourceDetails:
+    mode:
+      questionId: "q-mode"
+      answer: "只生成工作流"
+application:
+  apptag: "leavetest"
+  applicationname: "请假测试"
+  developerstag: "epoint"
+  kitid: "businessprocess"
+  tenantguid: ""
+  baseouguid: ""
+  categories: []
+  sources:
+    developerstag: "repo_inferred"
+    kitid: "repo_inferred"
+    tenantguid: "safe_default"
+    baseouguid: "safe_default"
+    categories: "repo_inferred"
+  sourceDetails:
+    developerstag:
+      repoEvidence: { path: "src/main/resources/META-INF/resources/epoint/leavetest/appinfo.lowcode.yml" }
+    kitid:
+      repoEvidence: { path: "src/main/resources/META-INF/resources/epoint/leavetest/appinfo.lowcode.yml" }
+    tenantguid:
+      reason: "现有应用未配置 tenantguid，空值作为安全默认"
+    baseouguid:
+      reason: "现有应用未配置 baseouguid，空值作为安全默认"
+    categories:
+      repoEvidence: { path: "src/main/resources/META-INF/resources/epoint/leavetest" }
+assets:
+  - id: "wf-leave"
+    type: "workflow"
+    status: "pending"
+    dependencies: []
+    spec:
+      processName: "请假审批流程"
+      processMode: "normal"
+      material: "请假申请表"
+      sqlTableName: "leaveinfo"
+      pageTagForm: "leave_form"
+      pageTagDetail: "leave_detail"
+      activities:
+        - name: "申请"
+          type: "apply"
+        - name: "部门经理审批"
+          type: "approve"
+          transactorSource: "assignee"
+      contexts: []
+      conditions: []
+      methods: []
+      events: []
+      activityMaterials: []
+      activityExtra: []
+      approvePassRate: []
+      confirmations:
+        processGoal: { status: "confirmed", source: "user_confirmed" }
+        activityChain: { status: "confirmed", source: "user_confirmed" }
+        transactors: { status: "confirmed", source: "user_confirmed" }
+        conditions: { status: "not_required", source: "user_confirmed" }
+        pageTags:
+          status: "confirmed"
+          source: "repo_inferred"
+          repoEvidence:
+            paths: ["pagedesigne/leave_form.pagedesigne.yml", "pagedesigne/leave_detail.pagedesigne.yml"]
+        sqlTableName:
+          status: "confirmed"
+          source: "repo_inferred"
+          repoEvidence:
+            path: "mis/leaveinfo.mis.yml"
+        fieldPermissions: { status: "not_required", source: "user_confirmed" }
+        approvePassRate: { status: "not_required", source: "user_confirmed" }
+        timeout: { status: "not_required", source: "user_confirmed" }
+        eventLinkage: { status: "not_required", source: "user_confirmed" }
+    errors: []
+open_questions:
+  - id: "q-mode"
+    target: "task"
+    field: "task.mode"
+    severity: "confirm"
+    question: "本次是否只生成工作流？"
+    options: ["只生成工作流", "生成完整应用"]
+    recommended: "只生成工作流"
+    status: "resolved"
+    answer: "只生成工作流"
+    resolvedValue: "asset-fast"
+validation:
+  status: "pending"
+  reports: []

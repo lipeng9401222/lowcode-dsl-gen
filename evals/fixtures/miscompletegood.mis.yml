@@ -1,0 +1,68 @@
+type: mis
+name: miscompletegood
+description: MIS 完整字段正例
+tableName: miscompletegood
+fields:
+  - name: rowguid
+    type: nvarchar
+    description: 主键
+    length: 50
+    datasourceCodename: ""
+    fielddisplaytype: textbox
+    isframeou: false
+    isframeuser: false
+    isforeignkey: true
+    autoincrease: false
+    mustfill: true
+    defaultvalue: ""
+    uniquefield: true
+    notnull: true
+    fieldjd: 2
+    ismillisecond: false
+    precision: 0
+    frameMj: 0
+    controlwidth: 1
+    ordernumingrid: 0
+    dispfielddesc: false
+    fielddesc: ""
+    todispingrid: false
+    isquerycondition: false
+    isorderfield: false
+    orderdirection: asc
+    isexportexcel: false
+    gridmultirows: false
+    gridwidth: 100
+    dispInadd: false
+    iscustom: false
+  - name: customer_status
+    type: nvarchar
+    description: 客户状态
+    length: 50
+    datasourceCodename: 审核状态
+    fielddisplaytype: combobox
+    isframeou: false
+    isframeuser: false
+    isforeignkey: false
+    autoincrease: false
+    mustfill: true
+    defaultvalue: ""
+    uniquefield: false
+    notnull: true
+    fieldjd: 2
+    ismillisecond: false
+    precision: 0
+    frameMj: 0
+    controlwidth: 1
+    ordernumingrid: 10
+    dispfielddesc: false
+    fielddesc: ""
+    todispingrid: true
+    isquerycondition: false
+    isorderfield: false
+    orderdirection: asc
+    isexportexcel: false
+    gridmultirows: false
+    gridwidth: 100
+    dispInadd: true
+    iscustom: false
+relations: []

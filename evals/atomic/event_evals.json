@@ -1,0 +1,23 @@
+{
+  "skill_name": "lowcode-gen-event",
+  "evals": [
+    {
+      "id": "event-status-link",
+      "prompt": "根据 IR 生成提交后状态联动动作流。",
+      "expectations": [
+        "确认这是状态变更联动而不是标准 CRUD。",
+        "使用 ir_to_event_args.py 和 add_event.py --from-ir --dry-run。",
+        "落盘后运行 check_dsl.py 和 validate_yml.py。"
+      ]
+    },
+    {
+      "id": "event-crud-reject",
+      "prompt": "列表查询 getDataGridModel 是否要生成动作流？",
+      "expectations": [
+        "默认不生成 event。",
+        "说明标准 CRUD 走 MIS 接口或 REST 标准方法。",
+        "只有用户明确要求非常规动作流时才进入 event。"
+      ]
+    }
+  ]
+}

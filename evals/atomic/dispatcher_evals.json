@@ -1,0 +1,23 @@
+{
+  "skill_name": "lowcode-dsl-gen",
+  "evals": [
+    {
+      "id": "dispatcher-ir",
+      "prompt": "根据一份整应用需求输出 IR。",
+      "expectations": [
+        "输出 application/assets/open_questions/validation。",
+        "assets 使用 id/type/status/spec/dependencies/errors。",
+        "调用 validate_ir.py 后再进入原子调度。"
+      ]
+    },
+    {
+      "id": "dispatcher-plan-partition",
+      "prompt": "同时生成审批流和动作流。",
+      "expectations": [
+        "主计划放资产队列和依赖关系（IR 可选，仅复杂整应用/审计时附 IR 片段）。",
+        "workflow 细节写入 .lowcode-plans/<apptag>/workflow/<asset-id>-plan.md。",
+        "event 细节写入 .lowcode-plans/<apptag>/event/<asset-id>-plan.md。"
+      ]
+    }
+  ]
+}

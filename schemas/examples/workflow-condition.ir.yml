@@ -1,0 +1,143 @@
+version: "1.0"
+task:
+  mode: "asset-fast"
+  requestedAssetTypes: ["workflow"]
+  sources:
+    mode: "user_confirmed"
+  sourceDetails:
+    mode:
+      questionId: "q-mode"
+      answer: "在 leavetest 应用下生成请假审批流程"
+application:
+  apptag: "leavetest"
+  applicationname: "请假测试"
+  developerstag: "epoint"
+  kitid: "businessprocess"
+  tenantguid: ""
+  baseouguid: ""
+  categories: []
+  sources:
+    developerstag: "repo_inferred"
+    kitid: "repo_inferred"
+    tenantguid: "safe_default"
+    baseouguid: "safe_default"
+    categories: "repo_inferred"
+  sourceDetails:
+    developerstag:
+      repoEvidence: { path: "src/main/resources/META-INF/resources/epoint/leavetest/appinfo.lowcode.yml" }
+    kitid:
+      repoEvidence: { path: "src/main/resources/META-INF/resources/epoint/leavetest/appinfo.lowcode.yml" }
+    categories:
+      repoEvidence: { path: "src/main/resources/META-INF/resources/epoint/leavetest" }
+    tenantguid:
+      reason: "现有应用未配置 tenantguid，空值作为安全默认"
+    baseouguid:
+      reason: "现有应用未配置 baseouguid，空值作为安全默认"
+assets:
+  - id: "asset-001"
+    type: "workflow"
+    status: "pending"
+    dependencies: []
+    spec:
+      processName: "请假审批流程"
+      processMode: "normal"
+      material: "请假申请表"
+      sqlTableName: "leaveinfo"
+      pageTagForm: "leave_form"
+      pageTagDetail: "leave_detail"
+      activities:
+        - name: "申请"
+          type: "apply"
+        - name: "部门经理审批"
+          type: "approve"
+          transactorSource: "assignee"
+        - name: "BG领导审批"
+          type: "approve"
+          transactorSource: "assignee"
+      contexts:
+        - fieldname: "leave_days"
+          note: "请假天数"
+          fieldtype: 10
+          valuesource: 30
+          fromsqltablename: "leaveinfo"
+          fromfieldname: "leave_days"
+      conditions:
+        - fromActivity: "部门经理审批"
+          toActivity: "BG领导审批"
+          transitionname: "BG领导审批"
+          conditionname: "请假天数大于等于3天"
+          leftvalue: "[#=leave_days#]"
+          lefttext: "请假天数"
+          compareoperation: ">="
+          rightvalue: "3"
+          righttext: "3天"
+          valuetype: 10
+        - fromActivity: "部门经理审批"
+          toActivity: "结束"
+          transitionname: "直接结束"
+          conditionname: "请假天数小于3天"
+          leftvalue: "[#=leave_days#]"
+          lefttext: "请假天数"
+          compareoperation: "<"
+          rightvalue: "3"
+          righttext: "3天"
+          valuetype: 10
+      methods: []
+      events: []
+      activityMaterials: []
+      activityExtra: []
+      approvePassRate: []
+      confirmations:
+        processGoal: { status: "confirmed", source: "user_confirmed", questionId: "q-workflow-effect" }
+        activityChain: { status: "confirmed", source: "user_confirmed", questionId: "q-workflow-effect" }
+        transactors: { status: "confirmed", source: "user_confirmed", questionId: "q-workflow-effect" }
+        conditions: { status: "confirmed", source: "user_confirmed", questionId: "q-workflow-effect" }
+        pageTags:
+          status: "confirmed"
+          source: "repo_inferred"
+          repoEvidence:
+            paths:
+              - "src/main/resources/META-INF/resources/epoint/leavetest/pagedesigne/请假表单.pagedesigne.yml"
+              - "src/main/resources/META-INF/resources/epoint/leavetest/pagedesigne/请假详情.pagedesigne.yml"
+        sqlTableName:
+          status: "confirmed"
+          source: "repo_inferred"
+          repoEvidence:
+            path: "src/main/resources/META-INF/resources/epoint/leavetest/mis/leaveinfo.mis.yml"
+        fieldPermissions: { status: "not_required", source: "user_confirmed", questionId: "q-workflow-effect" }
+        approvePassRate: { status: "not_required", source: "user_confirmed", questionId: "q-workflow-effect" }
+        timeout: { status: "not_required", source: "user_confirmed", questionId: "q-workflow-effect" }
+        eventLinkage: { status: "not_required", source: "user_confirmed", questionId: "q-workflow-effect" }
+    errors: []
+open_questions:
+  - id: "q-mode"
+    target: "task"
+    field: "task.mode"
+    severity: "confirm"
+    question: "本次是否只在 leavetest 应用下生成 workflow？"
+    options: ["只生成 workflow", "生成完整应用", "仅生成计划"]
+    recommended: "只生成 workflow"
+    status: "resolved"
+    answer: "只在 leavetest 应用下生成 workflow"
+    resolvedValue: "asset-fast"
+  - id: "q-workflow-effect"
+    target: "asset-001"
+    field: "workflow.confirmations"
+    severity: "blocking"
+    question: "请确认请假审批流程效果、节点链路、处理人、条件分支和可跳过能力。"
+    options: ["按描述生成条件分支，其他能力不需要", "需要字段权限/会签/状态联动"]
+    recommended: "按描述生成条件分支，其他能力不需要"
+    status: "resolved"
+    answer: "按描述生成条件分支，其他能力不需要"
+    resolvedValue:
+      processGoal: "请假审批流程"
+      activityChain: ["申请", "部门经理审批", "BG领导审批"]
+      transactors: "审批节点按指定处理人"
+      conditions: "leave_days >= 3 走 BG 领导审批，否则结束"
+      fieldPermissions: "not_required"
+      approvePassRate: "not_required"
+      timeout: "not_required"
+      eventLinkage: "not_required"
+validation:
+  status: "pending"
+  reports: []

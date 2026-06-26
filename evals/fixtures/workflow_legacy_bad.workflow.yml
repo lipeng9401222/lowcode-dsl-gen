@@ -1,0 +1,349 @@
+type: workflow
+workFlow:
+  workflowProcess:
+    processguid: D67D3F00-AEB3-4152-A8D7-B494BF8CB73A
+    processname: "需求评审流程"
+    note: "需求登记、条件分支评审、执行、办结"
+    isvue: 1
+    designversion: senior
+    ordernum: 10
+    status: 10
+    tag: '10'
+    isnewversion: 10
+    customtype: 0
+    cansimpledisplay: null
+    appguid: null
+    baseouguid: null
+    tenantguid: ''
+  workflowVersion:
+    - workflowProcessVersion:
+        processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+        processguid: D67D3F00-AEB3-4152-A8D7-B494BF8CB73A
+        versionnum: '1.0'
+        isactive: 10
+        status: 10
+      activity:
+        - activityguid: C7E82F89-0886-4FEF-BB6B-D646944CF836
+          activityname: "开始"
+          activitydispname: "开始"
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          activitytype: 10
+          splittype: 30
+          jointype: null
+          multitransactormode: null
+          handleurl: null
+          mobilehandleurl: null
+          isallowaddattachfile: null
+          is_passwhennotransactor: null
+          iconx: '-159'
+          icony: '123'
+          vmlid: -1
+          workflowActivityOperation:
+            - operationguid: ABB8DE73-F0B3-40CD-AA72-E0B58D98CCE9
+              activityguid: C7E82F89-0886-4FEF-BB6B-D646944CF836
+              processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+              operationname: "送下一步"
+              operationtype: 10
+              is_requireopinion: 20
+              is_checkmaterialsubmit: 20
+              is_showoperationpage: 0
+              operationvisiablecase: '10'
+              is_shownextactivity: 1
+              is_showopiniontemplete: 0
+              ordernumber: 0
+        - activityguid: C8B6E606-3C4D-4203-A3F4-4C7FB06DF506
+          activityname: "需求登记"
+          activitydispname: "需求登记"
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          activitytype: 30
+          splittype: 20
+          jointype: 30
+          vmlid: 2
+          iconx: '26.5'
+          icony: '99'
+          multitransactormode: 10
+          handleurl: 'home/vuepagedesigner/renderer/add?pagetag=demand_form'
+          mobilehandleurl: 'home/vuepagedesigner/renderer/add?pagetag=demand_form'
+          isallowaddattachfile: 20
+          is_passwhennotransactor: 20
+          is_lockwhenmultitransactor: 0
+          mobilehandletype: app
+          timelimitenable: null
+          timelimit: -1.0
+          timelimitunit: 50
+          earlywarning_enable: null
+          earlywarning_time: -1.0
+          earlywarning_timeunit: 50
+          note: "需求登记环节，当前登记人可提交或保存"
+          workflowActivityOperation:
+            - operationguid: C884F578-FF39-4518-80F4-302277E8B7BF
+              activityguid: C8B6E606-3C4D-4203-A3F4-4C7FB06DF506
+              processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+              operationname: "送下一步"
+              operationtype: 10
+              is_requireopinion: 10
+              is_checkmaterialsubmit: 10
+              is_showoperationpage: 1
+              operationvisiablecase: '10'
+              is_shownextactivity: 1
+              is_showopiniontemplete: 0
+              ordernumber: 0
+              statelevel: 10
+        - activityguid: 42810248-C91D-439E-9F87-7C127FCF204F
+          activityname: "总负责人评审"
+          activitydispname: "总负责人评审"
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          activitytype: 30
+          splittype: 30
+          jointype: 30
+          vmlid: 3
+          iconx: '200'
+          icony: '99'
+          multitransactormode: 10
+          handleurl: 'home/vuepagedesigner/renderer/add?pagetag=demand_review'
+          mobilehandleurl: 'home/vuepagedesigner/renderer/add?pagetag=demand_review'
+          isallowaddattachfile: 20
+          is_passwhennotransactor: 20
+          is_lockwhenmultitransactor: 0
+          mobilehandletype: app
+          timelimitenable: null
+          timelimit: -1.0
+          timelimitunit: 50
+          earlywarning_enable: null
+          earlywarning_time: -1.0
+          earlywarning_timeunit: 50
+          note: "需求来源为内部优化时进入此环节"
+          workflowActivityOperation:
+            - operationguid: 1C0DA6B2-1559-4B3C-A02E-BB4BD98F72DB
+              activityguid: 42810248-C91D-439E-9F87-7C127FCF204F
+              processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+              operationname: "送下一步"
+              operationtype: 10
+              is_requireopinion: 10
+              is_checkmaterialsubmit: 20
+              is_showoperationpage: 1
+              operationvisiablecase: '10'
+              is_shownextactivity: 1
+              is_showopiniontemplete: 0
+              ordernumber: 0
+              statelevel: 10
+              defaultopinion: "评审通过"
+            - operationguid: A57C278A-A482-4473-ACA8-AFA03F0792FC
+              activityguid: 42810248-C91D-439E-9F87-7C127FCF204F
+              processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+              operationname: "退回"
+              operationtype: 30
+              is_requireopinion: 10
+              is_checkmaterialsubmit: 20
+              is_showoperationpage: 1
+              operationvisiablecase: '1020'
+              is_shownextactivity: 0
+              backtargetscope: '1'
+              targetactivity: '[#=AllBeforeActivity#]'
+              multitransctormode: OR
+              is_showopiniontemplete: 0
+              ordernumber: 1
+              statelevel: 30
+        - activityguid: 76A06C2A-9504-44E3-8F5C-4714D442F7FB
+          activityname: "指定人员执行"
+          activitydispname: "指定人员执行"
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          activitytype: 30
+          splittype: 30
+          jointype: 30
+          vmlid: 4
+          iconx: '400'
+          icony: '99'
+          multitransactormode: 10
+          handleurl: 'home/vuepagedesigner/renderer/add?pagetag=demand_exec'
+          mobilehandleurl: 'home/vuepagedesigner/renderer/add?pagetag=demand_exec'
+          isallowaddattachfile: 20
+          is_passwhennotransactor: 20
+          is_lockwhenmultitransactor: 0
+          mobilehandletype: app
+          timelimitenable: null
+          timelimit: -1.0
+          timelimitunit: 50
+          earlywarning_enable: null
+          earlywarning_time: -1.0
+          earlywarning_timeunit: 50
+          note: "指定人员执行需求"
+          workflowActivityOperation:
+            - operationguid: 0C9BFEE4-6A29-4CBC-B1D9-43E548BB1645
+              activityguid: 76A06C2A-9504-44E3-8F5C-4714D442F7FB
+              processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+              operationname: "办结"
+              operationtype: 10
+              is_requireopinion: 10
+              is_checkmaterialsubmit: 20
+              is_showoperationpage: 1
+              operationvisiablecase: '10'
+              is_shownextactivity: 1
+              is_showopiniontemplete: 0
+              ordernumber: 0
+              statelevel: 10
+            - operationguid: 157FA93D-E75F-4ED3-AD74-44591A1CF533
+              activityguid: 76A06C2A-9504-44E3-8F5C-4714D442F7FB
+              processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+              operationname: "退回"
+              operationtype: 30
+              is_requireopinion: 10
+              is_checkmaterialsubmit: 20
+              is_showoperationpage: 1
+              operationvisiablecase: '1020'
+              is_shownextactivity: 0
+              backtargetscope: '1'
+              targetactivity: '[#=AllBeforeActivity#]'
+              multitransctormode: OR
+              is_showopiniontemplete: 0
+              ordernumber: 1
+              statelevel: 30
+        - activityguid: 2B49B1CC-46FD-4EB3-BD3A-9D0131D24EC0
+          activityname: "结束"
+          activitydispname: "结束"
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          activitytype: 20
+          splittype: null
+          jointype: 30
+          multitransactormode: null
+          handleurl: null
+          mobilehandleurl: null
+          isallowaddattachfile: null
+          is_passwhennotransactor: null
+          iconx: '600'
+          icony: '99'
+          vmlid: 1
+      transition:
+        - transitionguid: 7A578832-F577-4D83-9AAA-55DBD7297CFE
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          fromactivityguid: C7E82F89-0886-4FEF-BB6B-D646944CF836
+          toactivityguid: C8B6E606-3C4D-4203-A3F4-4C7FB06DF506
+          transitionname: "申请"
+          transitiondispname: "申请"
+          is_sendtomessagecenter: 10
+          priority: 60
+          type: 10
+          targetactivitytransactorsource: 10
+          is_targettransactor_editable: 10
+          is_default: 20
+          is_showasoperationbutton: 20
+          vmlid: 2
+        - transitionguid: E28C27A8-2D85-4BA3-AEFD-830EBD40E52A
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          fromactivityguid: C8B6E606-3C4D-4203-A3F4-4C7FB06DF506
+          toactivityguid: 42810248-C91D-439E-9F87-7C127FCF204F
+          transitionname: "总负责人评审"
+          transitiondispname: "总负责人评审"
+          is_sendtomessagecenter: 10
+          priority: 60
+          type: 10
+          targetactivitytransactorsource: 10
+          is_targettransactor_editable: 10
+          is_default: 20
+          is_showasoperationbutton: 20
+          vmlid: 3
+          workflowTransitionCondition:
+            - conditionguid: F7CFDB92-7842-4DE0-AC0F-DB51C8F56AD1
+              conditionname: "需求来源为内部优化"
+              transitionguid: E28C27A8-2D85-4BA3-AEFD-830EBD40E52A
+              conditionexpressiontype: 10
+              leftvalue: '[#=demandsource#]'
+              lefttext: "需求来源"
+              compareoperation: "="
+              rightvalue: "4"
+              righttext: "4"
+              valuetype: 10
+              processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+              ordernum: 0
+        - transitionguid: A05DA330-4731-4C3B-9A99-C5A213B733AD
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          fromactivityguid: C8B6E606-3C4D-4203-A3F4-4C7FB06DF506
+          toactivityguid: 76A06C2A-9504-44E3-8F5C-4714D442F7FB
+          transitionname: "指定人员执行"
+          transitiondispname: "指定人员执行"
+          is_sendtomessagecenter: 10
+          priority: 60
+          type: 10
+          targetactivitytransactorsource: 10
+          is_targettransactor_editable: 10
+          is_default: 20
+          is_showasoperationbutton: 20
+          vmlid: 4
+          workflowTransitionCondition:
+            - conditionguid: 16EE9604-035A-4571-807D-44430D0F2D28
+              conditionname: "需求来源非内部优化"
+              transitionguid: A05DA330-4731-4C3B-9A99-C5A213B733AD
+              conditionexpressiontype: 10
+              leftvalue: '[#=demandsource#]'
+              lefttext: "需求来源"
+              compareoperation: "!="
+              rightvalue: "4"
+              righttext: "4"
+              valuetype: 10
+              processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+              ordernum: 0
+        - transitionguid: 82D8EBD2-441D-46FE-B19C-F1C904CE9363
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          fromactivityguid: 42810248-C91D-439E-9F87-7C127FCF204F
+          toactivityguid: 76A06C2A-9504-44E3-8F5C-4714D442F7FB
+          transitionname: "执行"
+          transitiondispname: "执行"
+          is_sendtomessagecenter: 10
+          priority: 60
+          type: 10
+          targetactivitytransactorsource: 10
+          is_targettransactor_editable: 10
+          is_default: 20
+          is_showasoperationbutton: 20
+          vmlid: 5
+        - transitionguid: 03862A14-47DD-4797-AC62-961961CF0DE4
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          fromactivityguid: 76A06C2A-9504-44E3-8F5C-4714D442F7FB
+          toactivityguid: 2B49B1CC-46FD-4EB3-BD3A-9D0131D24EC0
+          transitionname: "办结"
+          transitiondispname: "办结"
+          is_sendtomessagecenter: 10
+          priority: 60
+          type: 10
+          targetactivitytransactorsource: 10
+          is_targettransactor_editable: 10
+          is_default: 20
+          is_showasoperationbutton: 20
+          vmlid: 6
+      workflowConfig:
+        - rowguid: B7FDEB5B-7039-468A-B194-AE5561547C2D
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          belongto: 22
+          configname: backTargetScope
+          configvalue: '1'
+          sourceguid: A57C278A-A482-4473-ACA8-AFA03F0792FC
+        - rowguid: FD27F7F6-5A88-411F-A698-0D71B89F8D1E
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          belongto: 22
+          configname: backTargetScope
+          configvalue: '1'
+          sourceguid: 157FA93D-E75F-4ED3-AD74-44591A1CF533
+      workflowPvMaterial:
+        - materialguid: 339E07C6-B09A-4F1E-9E93-47C930CB5933
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          materialname: "需求表单"
+          materialtype: 10
+          url: 'home/vuepagedesigner/renderer/add?pagetag=demand_form'
+      workflowPvMisTableSet:
+        - rowguid: 30A3AEC4-3A44-4A6D-8DC5-8AE0B96624B4
+          materialguid: 339E07C6-B09A-4F1E-9E93-47C930CB5933
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9
+          sql_tablename: demandinfo
+          formid: demand_form
+      workflowContext:
+        - fieldguid: 2D59DD2A-2A04-44AB-B82C-CE12361F6C45
+          fieldname: demandsource
+          note: "需求来源"
+          fieldtype: 10
+          valuesource: 30
+          frommaterialguid: 339E07C6-B09A-4F1E-9E93-47C930CB5933
+          fromsqltablename: demandinfo
+          fromfieldname: demandsource
+          fieldvalue: '[#=EPOINTFORM(demandinfo,demandsource,10)#]'
+          belongto: 10
+          processversionguid: CD91CB7E-2B05-4DC3-AB89-74305B9BE2A9

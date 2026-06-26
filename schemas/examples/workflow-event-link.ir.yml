@@ -1,0 +1,145 @@
+version: "1.0"
+task:
+  mode: "asset-fast"
+  requestedAssetTypes: ["event", "workflow"]
+  sources:
+    mode: "user_confirmed"
+  sourceDetails:
+    mode:
+      questionId: "q-mode"
+      answer: "同时生成采购立项审批 workflow 和审批后状态联动 event"
+application:
+  apptag: "purchaseproject"
+  applicationname: "采购立项"
+  developerstag: "epoint"
+  kitid: "businessprocess"
+  tenantguid: ""
+  baseouguid: ""
+  categories: []
+  sources:
+    developerstag: "repo_inferred"
+    kitid: "repo_inferred"
+    tenantguid: "safe_default"
+    baseouguid: "safe_default"
+    categories: "repo_inferred"
+  sourceDetails:
+    developerstag:
+      repoEvidence: { path: "src/main/resources/META-INF/resources/epoint/purchaseproject/appinfo.lowcode.yml" }
+    kitid:
+      repoEvidence: { path: "src/main/resources/META-INF/resources/epoint/purchaseproject/appinfo.lowcode.yml" }
+    categories:
+      repoEvidence: { path: "src/main/resources/META-INF/resources/epoint/purchaseproject" }
+    tenantguid:
+      reason: "现有应用未配置 tenantguid，空值作为安全默认"
+    baseouguid:
+      reason: "现有应用未配置 baseouguid，空值作为安全默认"
+assets:
+  - id: "asset-001"
+    type: "event"
+    status: "pending"
+    dependencies: []
+    spec:
+      name: "审批后状态联动"
+      sign: "approveStatus"
+      triggerType: "webhook"
+      apptag: "purchaseproject"
+      bizAction: "PurchaseProjectRestService_approveStatus"
+      bizTitle: "审批后更新状态并写日志"
+      contextClass: "com.epoint.purchaseproject.context.PurchaseProjectContext"
+      webhookUrl: "/lowcode/purchaseproject/approveStatus"
+      nodes: []
+    errors: []
+  - id: "asset-002"
+    type: "workflow"
+    status: "pending"
+    dependencies: ["asset-001"]
+    spec:
+      processName: "采购立项审批"
+      processMode: "normal"
+      material: "采购立项申请表"
+      sqlTableName: "purchaseproject"
+      pageTagForm: "purchaseproject_form"
+      pageTagDetail: "purchaseproject_detail"
+      activities:
+        - name: "申请"
+          type: "apply"
+        - name: "部门经理审批"
+          type: "approve"
+          transactorSource: "assignee"
+      methods:
+        - methodname: "审批后状态联动"
+          ruleguid: "approveStatus"
+      events:
+        - eventname: "审批后状态联动"
+          belongto: 22
+          eventtype: 55
+          sourceOperation: "部门经理审批:送下一步"
+          ruleguid: "approveStatus"
+      contexts: []
+      conditions: []
+      activityMaterials: []
+      activityExtra: []
+      approvePassRate: []
+      confirmations:
+        processGoal: { status: "confirmed", source: "user_confirmed", questionId: "q-workflow-effect" }
+        activityChain: { status: "confirmed", source: "user_confirmed", questionId: "q-workflow-effect" }
+        transactors: { status: "confirmed", source: "user_confirmed", questionId: "q-workflow-effect" }
+        conditions: { status: "not_required", source: "user_confirmed", questionId: "q-workflow-effect" }
+        pageTags:
+          status: "confirmed"
+          source: "repo_inferred"
+          repoEvidence:
+            paths:
+              - "src/main/resources/META-INF/resources/epoint/purchaseproject/pagedesigne/采购立项申请表.pagedesigne.yml"
+              - "src/main/resources/META-INF/resources/epoint/purchaseproject/pagedesigne/采购立项详情.pagedesigne.yml"
+        sqlTableName:
+          status: "confirmed"
+          source: "repo_inferred"
+          repoEvidence:
+            path: "src/main/resources/META-INF/resources/epoint/purchaseproject/mis/purchaseproject.mis.yml"
+        fieldPermissions: { status: "not_required", source: "user_confirmed", questionId: "q-workflow-effect" }
+        approvePassRate: { status: "not_required", source: "user_confirmed", questionId: "q-workflow-effect" }
+        timeout: { status: "not_required", source: "user_confirmed", questionId: "q-workflow-effect" }
+        eventLinkage: { status: "confirmed", source: "user_confirmed", questionId: "q-event-linkage" }
+    errors: []
+open_questions:
+  - id: "q-mode"
+    target: "task"
+    field: "task.mode"
+    severity: "confirm"
+    question: "本次是否只生成 workflow 和 event 两类资产？"
+    options: ["只生成 workflow 和 event", "生成完整应用", "仅生成计划"]
+    recommended: "只生成 workflow 和 event"
+    status: "resolved"
+    answer: "只生成 workflow 和 event"
+    resolvedValue: "asset-fast"
+  - id: "q-workflow-effect"
+    target: "asset-002"
+    field: "workflow.confirmations"
+    severity: "blocking"
+    question: "请确认采购立项审批流程目标、节点链路、处理人、条件分支和可跳过能力。"
+    options: ["按基础审批流生成，审批后联动 event", "需要补充分支/权限/会签"]
+    recommended: "按基础审批流生成，审批后联动 event"
+    status: "resolved"
+    answer: "按基础审批流生成，审批后联动 event"
+    resolvedValue:
+      processGoal: "采购立项审批"
+      activityChain: ["申请", "部门经理审批"]
+      transactors: "部门经理审批按指定处理人"
+      conditions: "not_required"
+      fieldPermissions: "not_required"
+      approvePassRate: "not_required"
+      timeout: "not_required"
+  - id: "q-event-linkage"
+    target: "asset-002"
+    field: "workflow.confirmations.eventLinkage"
+    severity: "confirm"
+    question: "审批后是否触发状态联动 event？"
+    options: ["触发审批后状态联动 event", "不触发 event"]
+    recommended: "触发审批后状态联动 event"
+    status: "resolved"
+    answer: "触发审批后状态联动 event"
+    resolvedValue: "ruleguid=approveStatus"
+validation:
+  status: "pending"
+  reports: []

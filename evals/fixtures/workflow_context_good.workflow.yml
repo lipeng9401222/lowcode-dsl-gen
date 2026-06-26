@@ -1,0 +1,410 @@
+type: workflow
+workFlow:
+  workflowProcess:
+    processguid: ba079040-e1a4-4be8-ac91-d7b9a0fa0a26
+    processname: 请假审批流程
+    note: 请假审批流程
+    isvue: 1
+    designversion: senior
+    ordernum: 50
+    status: 10
+    tag: '20'
+    isnewversion: null
+    customtype: null
+    cansimpledisplay: null
+    statemachinetag: null
+    appguid: null
+    baseouguid: null
+    tenantguid: ''
+  workflowVersion:
+    activity:
+    - activityguid: 4d2ce265-120d-45f3-8ce3-7f53c8f9e550
+      activityname: 开始
+      activitydispname: 开始
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      activitytype: 10
+      splittype: 30
+      jointype: null
+      timelimit: -1.0
+      timelimitunit: 55
+      earlywarning_time: -1.0
+      earlywarning_timeunit: 55
+      is_lockwhenmultitransactor: 0
+      mobilehandletype: app
+      iconx: '0'
+      icony: '204'
+      vmlid: -1
+      note: 流程开始
+      multitransactormode: null
+      handleurl: null
+      mobilehandleurl: null
+      isallowaddattachfile: null
+      timelimitenable: null
+      earlywarning_enable: null
+      is_passwhennotransactor: null
+      workflowActivityOperation:
+      - operationguid: f083adf0-705f-4171-87e3-55bc9d8a7dad
+        activityguid: 4d2ce265-120d-45f3-8ce3-7f53c8f9e550
+        processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+        operationname: 送下一步
+        operationtype: 10
+        is_requireopinion: 20
+        is_checkmaterialsubmit: 20
+        is_showoperationpage: 0
+        operationvisiablecase: '1020'
+        is_shownextactivity: 1
+        is_showopiniontemplete: 0
+        ordernumber: 0
+    - activityguid: fc34c8fc-f816-4e4e-b18a-58b94fc6981d
+      activityname: 申请
+      activitydispname: 申请
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      activitytype: 30
+      splittype: 20
+      jointype: 30
+      multitransactormode: 10
+      handleurl: home/vuepagedesigner/renderer/add?pagetag=leave_form
+      mobilehandleurl: home/vuepagedesigner/renderer/add?pagetag=leave_form
+      isallowaddattachfile: 20
+      timelimitenable: 20
+      timelimit: -1.0
+      timelimitunit: 55
+      earlywarning_enable: 20
+      earlywarning_time: -1.0
+      earlywarning_timeunit: 55
+      is_passwhennotransactor: 20
+      is_lockwhenmultitransactor: 0
+      mobilehandletype: app
+      iconx: '235'
+      icony: '180'
+      vmlid: 2
+      note: 申请人填写并提交申请信息
+      workflowActivityOperation:
+      - operationguid: 40667828-7351-4261-9cd4-85ee33b35189
+        activityguid: fc34c8fc-f816-4e4e-b18a-58b94fc6981d
+        processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+        operationname: 送下一步
+        operationtype: 10
+        is_requireopinion: 10
+        is_checkmaterialsubmit: 20
+        is_showoperationpage: 1
+        operationvisiablecase: '1020'
+        is_shownextactivity: 1
+        is_showopiniontemplete: 0
+        ordernumber: 0
+        statelevel: 10
+    - activityguid: d12eea8b-c135-4acb-9045-0eb64da33433
+      activityname: 部门经理审批
+      activitydispname: 部门经理审批
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      activitytype: 30
+      splittype: 20
+      jointype: 30
+      multitransactormode: 10
+      handleurl: home/vuepagedesigner/renderer/add?pagetag=leave_form
+      mobilehandleurl: home/vuepagedesigner/renderer/add?pagetag=leave_form
+      isallowaddattachfile: 20
+      timelimitenable: 20
+      timelimit: -1.0
+      timelimitunit: 55
+      earlywarning_enable: 20
+      earlywarning_time: -1.0
+      earlywarning_timeunit: 55
+      is_passwhennotransactor: 20
+      is_lockwhenmultitransactor: 0
+      mobilehandletype: app
+      iconx: '575'
+      icony: '180'
+      vmlid: 3
+      nopasshandlevalue: '10'
+      note: 部门经理审批人审核
+      workflowActivityOperation:
+      - operationguid: 8edcfc61-ad1c-4807-a743-a83d56ad87fe
+        activityguid: d12eea8b-c135-4acb-9045-0eb64da33433
+        processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+        operationname: 送下一步
+        operationtype: 10
+        is_requireopinion: 10
+        is_checkmaterialsubmit: 20
+        is_showoperationpage: 1
+        operationvisiablecase: '1020'
+        is_shownextactivity: 1
+        is_showopiniontemplete: 0
+        ordernumber: 0
+        statelevel: 10
+      - operationguid: d42aa8f1-111b-4948-ace9-5e69d258dcc7
+        activityguid: d12eea8b-c135-4acb-9045-0eb64da33433
+        processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+        operationname: 退回
+        operationtype: 30
+        is_requireopinion: 10
+        is_checkmaterialsubmit: 20
+        is_showoperationpage: 1
+        operationvisiablecase: '1020'
+        is_shownextactivity: 0
+        backtargetscope: '1'
+        targetactivity: '[#=AllBeforeActivity#]'
+        multitransctormode: OR
+        is_showopiniontemplete: 0
+        ordernumber: 1
+        statelevel: 30
+    - activityguid: d35aa624-2e35-4f86-ac55-82c2640e3236
+      activityname: BG领导审批
+      activitydispname: BG领导审批
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      activitytype: 30
+      splittype: 20
+      jointype: 30
+      multitransactormode: 10
+      handleurl: home/vuepagedesigner/renderer/add?pagetag=leave_form
+      mobilehandleurl: home/vuepagedesigner/renderer/add?pagetag=leave_form
+      isallowaddattachfile: 20
+      timelimitenable: 20
+      timelimit: -1.0
+      timelimitunit: 55
+      earlywarning_enable: 20
+      earlywarning_time: -1.0
+      earlywarning_timeunit: 55
+      is_passwhennotransactor: 20
+      is_lockwhenmultitransactor: 0
+      mobilehandletype: app
+      iconx: '921'
+      icony: '20'
+      vmlid: 4
+      nopasshandlevalue: '10'
+      note: BG领导审批人审核
+      workflowActivityOperation:
+      - operationguid: bcb851c9-8239-4b83-bd71-b6b3e3116bfb
+        activityguid: d35aa624-2e35-4f86-ac55-82c2640e3236
+        processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+        operationname: 送下一步
+        operationtype: 10
+        is_requireopinion: 10
+        is_checkmaterialsubmit: 20
+        is_showoperationpage: 1
+        operationvisiablecase: '1020'
+        is_shownextactivity: 1
+        is_showopiniontemplete: 0
+        ordernumber: 0
+        statelevel: 10
+      - operationguid: 9585e9df-aabe-4771-bdd2-3ea26941f883
+        activityguid: d35aa624-2e35-4f86-ac55-82c2640e3236
+        processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+        operationname: 退回
+        operationtype: 30
+        is_requireopinion: 10
+        is_checkmaterialsubmit: 20
+        is_showoperationpage: 1
+        operationvisiablecase: '1020'
+        is_shownextactivity: 0
+        backtargetscope: '1'
+        targetactivity: '[#=AllBeforeActivity#]'
+        multitransctormode: OR
+        is_showopiniontemplete: 0
+        ordernumber: 1
+        statelevel: 30
+    - activityguid: d5d559ff-0e66-486e-8588-c18d84ac494e
+      activityname: 结束
+      activitydispname: 结束
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      activitytype: 20
+      splittype: null
+      jointype: 30
+      timelimit: -1.0
+      timelimitunit: 55
+      earlywarning_time: -1.0
+      earlywarning_timeunit: 55
+      is_lockwhenmultitransactor: 0
+      mobilehandletype: app
+      iconx: '1261'
+      icony: '204'
+      vmlid: 1
+      note: 流程结束
+      multitransactormode: null
+      handleurl: null
+      mobilehandleurl: null
+      isallowaddattachfile: null
+      timelimitenable: null
+      earlywarning_enable: null
+      is_passwhennotransactor: null
+    - activityguid: 4c908bd9-ca75-43bc-a086-dc762b2254a6
+      activityname: 浏览
+      activitydispname: 浏览
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      activitytype: 100
+      splittype: 30
+      jointype: null
+      handleurl: home/vuepagedesigner/renderer/detail?pagetag=leave_list
+      mobilehandleurl: home/vuepagedesigner/renderer/detail?pagetag=leave_list
+      timelimit: -1.0
+      timelimitunit: 55
+      earlywarning_time: -1.0
+      earlywarning_timeunit: 55
+      is_lockwhenmultitransactor: 0
+      mobilehandletype: view
+      iconx: '24'
+      icony: '-34'
+      vmlid: -2
+      note: 已办流程浏览
+      multitransactormode: null
+      isallowaddattachfile: null
+      timelimitenable: null
+      earlywarning_enable: null
+      is_passwhennotransactor: null
+    workflowConfig:
+    - rowguid: b9c959ff-f8a1-4aa6-b3dd-a120438f7e4b
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      belongto: 22
+      configname: backTargetScope
+      configvalue: '1'
+      sourceguid: d42aa8f1-111b-4948-ace9-5e69d258dcc7
+    - rowguid: f6007b79-8d9f-4e0e-ad56-13264ef24912
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      belongto: 22
+      configname: backTargetScope
+      configvalue: '1'
+      sourceguid: 9585e9df-aabe-4771-bdd2-3ea26941f883
+    workflowPvMaterial:
+    - materialguid: 4d73d335-6169-46e3-8fd0-b923d28688b7
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      materialname: 请假申请表
+      type: 10
+      status: 10
+      submittype: 10
+      pageurl_read: home/vuepagedesigner/renderer/detail?pagetag=leave_list
+      pageurl_readandwrite: home/vuepagedesigner/renderer/add?pagetag=leave_form
+      mobilepageurl_read: ''
+      mobilepageurl_readandwrite: ''
+    workflowPvMisTableSet:
+    - mistablesetguid: 6d863aec-591e-4a33-9f96-0c63b66b53b0
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      materialguid: 4d73d335-6169-46e3-8fd0-b923d28688b7
+      tableguid: 7c7c6745-d8c6-405a-8e9a-ce99eb65263a
+      sql_tablename: leaveapplication
+    transition:
+    - transitionguid: 7e96dab2-8eb6-46ec-8ae0-58fcc05391e9
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      fromactivityguid: 4d2ce265-120d-45f3-8ce3-7f53c8f9e550
+      toactivityguid: fc34c8fc-f816-4e4e-b18a-58b94fc6981d
+      transitionname: 申请
+      transitiondispname: 申请
+      is_sendtomessagecenter: 10
+      priority: 60
+      type: 10
+      targetactivitytransactorsource: 10
+      is_targettransactor_editable: 10
+      is_default: 20
+      is_showasoperationbutton: 20
+      vmlid: 2
+    - transitionguid: 9d17ef3d-9c7a-4b30-8229-5bf163a23703
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      fromactivityguid: fc34c8fc-f816-4e4e-b18a-58b94fc6981d
+      toactivityguid: d12eea8b-c135-4acb-9045-0eb64da33433
+      transitionname: 部门经理审批
+      transitiondispname: 部门经理审批
+      is_sendtomessagecenter: 10
+      priority: 60
+      type: 10
+      targetactivitytransactorsource: 10
+      is_targettransactor_editable: 10
+      is_default: 20
+      is_showasoperationbutton: 20
+      vmlid: 3
+    - transitionguid: 03f6dfd6-e13f-4d7e-82a4-e7deeeee290f
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      fromactivityguid: d12eea8b-c135-4acb-9045-0eb64da33433
+      toactivityguid: d35aa624-2e35-4f86-ac55-82c2640e3236
+      transitionname: BG领导审批
+      transitiondispname: BG领导审批
+      is_sendtomessagecenter: 10
+      priority: 60
+      type: 10
+      targetactivitytransactorsource: 10
+      is_targettransactor_editable: 10
+      is_default: 20
+      is_showasoperationbutton: 20
+      vmlid: 4
+      workflowTransitionCondition:
+      - conditionguid: 65657d32-cb88-483c-a0ab-85caaad9f273
+        conditionname: 请假天数大于等于3天
+        transitionguid: 03f6dfd6-e13f-4d7e-82a4-e7deeeee290f
+        conditionexpressiontype: 10
+        leftvalue: '[#=leave_days#]'
+        lefttext: 请假天数
+        compareoperation: ">="
+        rightvalue: '3'
+        righttext: '3'
+        valuetype: 30
+        processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+        ordernum: 0
+    - transitionguid: de34e0c8-e5b5-42da-a46f-ad8842828875
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      fromactivityguid: d12eea8b-c135-4acb-9045-0eb64da33433
+      toactivityguid: d5d559ff-0e66-486e-8588-c18d84ac494e
+      transitionname: 结束（三天以下）
+      transitiondispname: 结束（三天以下）
+      is_sendtomessagecenter: 10
+      priority: 60
+      type: 10
+      targetactivitytransactorsource: 10
+      is_targettransactor_editable: 10
+      is_default: 20
+      is_showasoperationbutton: 20
+      vmlid: 6
+      workflowTransitionCondition:
+      - conditionguid: d8c63d7b-93b5-459b-9c89-f538d9a44b47
+        conditionname: 请假天数小于3天
+        transitionguid: de34e0c8-e5b5-42da-a46f-ad8842828875
+        conditionexpressiontype: 10
+        leftvalue: '[#=leave_days#]'
+        lefttext: 请假天数
+        compareoperation: "<"
+        rightvalue: '3'
+        righttext: '3'
+        valuetype: 30
+        processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+        ordernum: 0
+    - transitionguid: 46a9700b-6408-4bc6-bd93-f115f26d484e
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      fromactivityguid: d35aa624-2e35-4f86-ac55-82c2640e3236
+      toactivityguid: d5d559ff-0e66-486e-8588-c18d84ac494e
+      transitionname: 结束
+      transitiondispname: 结束
+      is_sendtomessagecenter: 10
+      priority: 60
+      type: 10
+      targetactivitytransactorsource: 10
+      is_targettransactor_editable: 10
+      is_default: 20
+      is_showasoperationbutton: 20
+      vmlid: 5
+    workflowContext:
+    - fieldguid: c7951e23-9e99-4f47-9c3c-e9feb4b5a5e2
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      fieldname: leave_days
+      note: 请假天数
+      belongto: 10
+      fieldtype: 30
+      valuesource: 30
+      frommaterialguid: 4d73d335-6169-46e3-8fd0-b923d28688b7
+      fromsqltablename: leaveapplication
+      fromfieldname: leave_days
+      fieldvalue: '[#=EPOINTFORM(leaveapplication,leave_days,10)#]'
+    workflowProcessVersion:
+      processversionguid: 931bc358-7abc-434a-8d8f-31a85f8ee36d
+      processguid: ba079040-e1a4-4be8-ac91-d7b9a0fa0a26
+      processversionname: 请假审批流程
+      version: V1
+      status: 10
+      designversion: senior
+      direction: '90'
+      createdate: '2026-06-03 10:51:08'
+      updatedate: '2026-06-03 10:51:08'
+      author: b3db9bfe-296e-476d-ac64-e0cac3f7a145
+      isshowlinegraph: Normal
+      isshownodesimple: details
+      revokeoption: 20
+      revokeallowday: 0
+      revokeremindoption: 20
+      noparticipatoroption: 10
+      defaultuserguid: null

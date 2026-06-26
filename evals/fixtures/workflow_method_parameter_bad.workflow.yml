@@ -1,0 +1,40 @@
+type: workflow
+workFlow:
+  workflowProcess:
+    processguid: 00000000-0000-0000-0000-000000000101
+    processname: 方法参数坏例流程
+    designversion: senior
+    status: 10
+    tag: '20'
+  workflowVersion:
+    workflowProcessVersion:
+      processversionguid: 00000000-0000-0000-0000-000000000102
+      processguid: 00000000-0000-0000-0000-000000000101
+      processversionname: V1
+      version: V1
+      status: 10
+      designversion: senior
+      direction: '90'
+      createdate: '2026-06-04 00:00:00'
+      updatedate: '2026-06-04 00:00:00'
+      author: 00000000-0000-0000-0000-000000000103
+      isshowlinegraph: 20
+      isshownodesimple: 20
+      revokeoption: 20
+      noparticipatoroption: 10
+    method:
+      - methodguid: 00000000-0000-0000-0000-000000000104
+        processversionguid: 00000000-0000-0000-0000-000000000102
+        dllpath: ''
+        typename: com.epoint.workflow.ExternalMethods
+        methodname: updateStatus
+        returnvaluetype: Void
+        note: 不应暴露方法参数子节点
+        ordernum: 10
+        ruleguid: ''
+        workflowMethodParameter:
+          - mpguid: 00000000-0000-0000-0000-000000000105
+            methodguid: 00000000-0000-0000-0000-000000000104
+            mpname: status
+            mptype: 10
+            mpvalue: '20'
