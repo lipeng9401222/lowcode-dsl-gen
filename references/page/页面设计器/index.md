@@ -5,7 +5,7 @@
 `pagedesigne` 资产描述页面设计器页面，文件落在应用根目录：
 
 ```text
-<apptag>/page/<页面名>.json
+<apptag>/page/<pagetag>.json
 ```
 
 页面内容以 Core Schema 表达，覆盖页面标题、`pagetag`、设备类型、页面类型、视图树、视图模型、资源、动作、事件、规则和字段绑定。
@@ -45,6 +45,7 @@
 |--------|--------|
 | [`../设计器 Schema 规范定义/index.md`](../设计器%20Schema%20规范定义/index.md) | Core Schema 主规范入口 |
 | [`基础结构/index.md`](基础结构/index.md) | 快速了解页面根对象、视图树、模型、资源、动作的分工 |
+| [`基础结构/组件与字段对照.md`](基础结构/组件与字段对照.md) | 组件文档名、JSON 节点类型、字段含义、组件选型矩阵和关键 props 基线 |
 | [`场景示例/index.md`](场景示例/index.md) | 按列表页、表单页选择可参考示例 |
 | [`生成与校验/index.md`](生成与校验/index.md) | 生成前字段收集、脚本调用、落盘和校验流程 |
 | [`检查清单/index.md`](检查清单/index.md) | 交付前逐项自检 |
@@ -62,12 +63,33 @@
 - 字段清单：字段名、标题、类型、是否查询条件、是否表格列、是否表单控件
 - 后端来源：标准列表、REST endpoint、动作流 event，或暂不绑定接口
 - 页面打开来源：模块菜单、工作流节点、按钮跳转或独立页面
+- 组件对照：先读 `基础结构/组件与字段对照.md`，确认组件文档、JSON 节点和生成器输出的对应关系
+- 组件选型：逐个字段确认是普通输入、字典选择、人员组织、树级联、弹窗选择、上传还是只读展示
+- 关键 props：确认每个控件至少需要哪些属性才能可用，例如 `codeItem`、`multiple`、`format`、`interactive`、`dialogConfigGuid`
+
+推荐阅读顺序：
+
+1. 先读 `基础结构/index.md`，明确页面根对象和视图树分工。
+2. 再读 `基础结构/组件与字段对照.md` 的“页面组件选型总规则”和“字段语义到组件的默认映射”。
+3. 然后按页面类型选 `场景示例/列表示例.md` 或 `场景示例/表单示例.md` 对齐骨架。
+4. 最后回到 `生成与校验/index.md` 执行落盘和校验。
 
 生成后必须执行：
 
 ```bash
 python3 scripts/validate_json.py <target-file>
 ```
+
+## 命名规则
+
+- 页面 `title` 可以使用中文名称，用于页面展示。
+- 页面 `pagetag`、JSON 文件名、模型别名默认使用英文标识。
+- 如果页面来自某个 `mis` 表，默认按 `mis.tableName` 对齐：
+  - `pagetag` 建议使用 `<mis.tableName>_<pageType>`
+  - 文件名默认使用 `<pagetag>.json`
+  - `models[*].sqlTableName` 写 `mis.tableName`
+  - 模型 `alias` 默认与 `mis.tableName` 一致
+- 只有用户明确指定其他命名方式时，才偏离上述默认规则。
 
 ## 4. 与其他资产的引用关系
 
@@ -94,6 +116,19 @@ python3 scripts/validate_json.py <target-file>
 - `model` 使用短路径，如 `taskinfo.taskname`。
 - `textModel` 只用于值/文本成对控件，且必须能解析到可写字段。
 - 表格列属于表格组件强结构，不降级写到普通节点 `props.columns`。
+
+### 组件选型执行规则
+
+- 列表页先固定 `toolbar + table` 结构，再给查询区和表格列选控件。
+- 表单/详情/办理页先固定 `layout-manager + collapse + form-layout + form-item` 结构，再往表单项里放控件。
+- 组件选型优先看字段语义，不只看数据库类型：
+  - 人员/部门字段优先选人选组织组件。
+  - 字典/枚举字段优先选 `select` / `radio-group` / `checkbox-group`。
+  - 层级分类优先选 `tree-select` / `cascader`。
+  - 外部对象选择优先选 `button-edit`。
+  - 附件与图片优先选上传类组件。
+- 只有在没有明确专用语义时，才退回 `input` / `input-number` / `date-picker` 这些通用控件。
+- 任何控件一旦选定，都要补足最少 props；不要生成只有 `type` 没有关键配置的空壳节点。
 
 ### 视图模型
 

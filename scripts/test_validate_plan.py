@@ -165,6 +165,43 @@ validation:
     return validate_plan(base / "demo-plan.md")
 
 
+def _mis_subplan() -> str:
+    lines = [
+        "# mis 子计划",
+        "status: pending",
+        "## 输入 IR 摘要",
+        "asset-mis-001 mis 表 blueprintinfo 摘要。",
+        "## 确认项与来源",
+        "字段、类型、长度、必填均已 user_confirmed；来源证据见对话 i-001。",
+        "## dry-run 命令和结果",
+        "python3 scripts/add_mis_field.py --app-root <app> --table blueprintinfo --create --dry-run",
+        "dry-run 通过。",
+        "## 生成后校验命令和结果",
+        "python3 scripts/validate_yml.py <file>",
+        "校验结果：待落盘后执行。",
+    ]
+    lines.extend(f"补充说明 {i}" for i in range(1, 14))
+    return "\n".join(lines) + "\n"
+
+
+def _case_approved_no_ir_with_subplan(root: Path) -> int:
+    """approved 且无 ir.yml，但主计划有资产队列 + 完整子计划：应通过（IR 可选）。"""
+    base = root / "approved-no-ir" / ".lowcode-plans"
+    plan_dir = base / "demo"
+    _write(
+        base / "demo-plan.md",
+        _main_plan(
+            approval_status="approved",
+            approval_text="按计划生成",
+            current_stage="待落盘",
+            asset_rows="| asset-mis-001 | mis | pending |",
+            execution_record="尚未执行。",
+        ),
+    )
+    _write(plan_dir / "mis" / "asset-mis-001-plan.md", _mis_subplan())
+    return validate_plan(base / "demo-plan.md")
+
+
 def main() -> int:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -172,6 +209,7 @@ def main() -> int:
             "pending_missing_ir": (_case_pending_missing_ir(root), 0),
             "plan_only_missing_ir": (_case_plan_only_missing_ir(root), 0),
             "approved_missing_ir": (_case_approved_missing_ir(root), 1),
+            "approved_no_ir_with_subplan": (_case_approved_no_ir_with_subplan(root), 0),
             "dry_run_workflow_with_ir": (_case_dry_run_workflow_with_ir(root), 0),
         }
 

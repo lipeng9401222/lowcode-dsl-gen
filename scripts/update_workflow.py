@@ -416,6 +416,8 @@ def cli() -> int:
     parser.add_argument("--rename-map-json", default="", help="节点改名映射 JSON，例如 {\"部门经理审批\":\"科室负责人审批\"}")
     parser.add_argument("--operation-mode", default="update-existing", choices=sorted(ALLOWED_OPERATION_MODES))
     parser.add_argument("--dry-run", action="store_true", help="只校验和打印变更摘要，不写回文件")
+    parser.add_argument("--confirm", action="store_true",
+                        help="确认写回。不加 --confirm 一律拒绝改文件，必须先 --dry-run 预览（落盘前确认红线）")
     args = parser.parse_args()
 
     workflow_path = Path(args.workflow_file).resolve()
@@ -452,6 +454,14 @@ def cli() -> int:
     if args.dry_run:
         print_info("  - dry-run: 未写回文件")
         return 0
+
+    if not args.confirm:
+        print_err(
+            "拒绝写回：修改工作流必须经人工预览确认后才能写入。\n"
+            "请先用 --dry-run 预览变更摘要，确认无误后再加 --confirm 写回。\n"
+            "（落盘前确认红线：禁止未经 dry-run 预览 + --confirm 确认直接改文件）"
+        )
+        return 1
 
     yaml_dump(updated, workflow_path)
     print_ok(f"workflow 已原地更新: {workflow_path}")

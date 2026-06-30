@@ -4,41 +4,51 @@
 
 ## 安装到各 IDE/CLI
 
-### 方式一：用 Skills CLI 安装（推荐，可定向到指定 IDE）
+### 方式一：一键安装脚本（推荐）
 
-本 skill 可用 [vercel-labs/skills](https://github.com/vercel-labs/skills) 的 `npx skills add` 安装。
-用 `-a/--agent` 指定目标 IDE，避免「明明选了 Claude 却没装进 `.claude/skills`」的问题：
-
-> 前提：仓库根目录需有 `SKILL.md`。若该 skill 不在仓库根（例如放在子目录或一个仓库里放了多个 skill），用 `--skill <skill 名>` 指定，例如 `npx skills add lipeng9401222/lowcode-dsl-gen --skill lowcode-dsl-gen -a claude-code`。
+使用 `bin/setup.sh` 自动检测已安装的 IDE/CLI 工具并创建软链：
 
 ```bash
-# 只装到 Claude Code
-npx skills add lipeng9401222/lowcode-dsl-gen -a claude-code
+# 自动检测并安装到所有已安装的工具
+./bin/setup.sh
 
-# 同时装到多个 agent（重复 -a）
-npx skills add lipeng9401222/lowcode-dsl-gen -a claude-code -a cursor -a codex
+# 只安装到 Claude Code
+./bin/setup.sh --agent claude-code
 
-# 全局安装（用户级，跨项目可用）：加 -g
-npx skills add lipeng9401222/lowcode-dsl-gen -a claude-code -g
+# 检查安装状态
+./bin/setup.sh --check
+
+# 列出支持的工具
+./bin/setup.sh --list
+
+# 卸载
+./bin/setup.sh --uninstall
 ```
 
-> **关于安装目录（重要）**：Skills CLI 默认走 **symlink 模式**——先把规范副本放到
-> `.agents/skills/<skill>`（全局是 `~/.agents/skills/<skill>`），再从各 IDE 目录
-> （`.claude/skills/`、`.cursor/skills/` 等）**软链**回这个规范副本。所以你在
-> `.claude/skills/` 下看到的通常是一个**软链**，而不是实体副本，这是正常设计（单一真相源，便于统一更新）。
->
-> 如果选了 Claude 却发现 `~/.claude/skills/` 下既没有实体也没有软链、内容只进了
-> `~/.agents/skills/`，多半是 symlink 创建失败回退到了 copy 模式，或命中了
-> [issue #744](https://github.com/vercel-labs/skills/issues/744)。此时改用 `--copy`
-> 强制复制模式，把实体副本直接写进每个 IDE 目录：
->
-> ```bash
-> npx skills add lipeng9401222/lowcode-dsl-gen -a claude-code --copy
-> ```
->
-> 安装后可用 `npx skills list` 查看各 agent 是否都装上了。
+支持的工具：Claude Code、Cursor、Codex CLI、Windsurf、CodeBuddy、Antigravity、Amp、Augment、OpenCode、Zed、Warp。
 
-### 方式二：手动软链（最稳妥的兜底）
+### 方式二：用 Skills CLI 安装
+
+用 [vercel-labs/skills](https://github.com/vercel-labs/skills) 的 `npx skills add` 安装。
+**建议使用 `--copy` 模式**以避免 symlink 创建失败的问题：
+
+```bash
+# 推荐：--copy 模式直接写实体副本到各 IDE 目录
+npx skills add lipeng9401222/lowcode-dsl-gen -a claude-code --copy
+
+# 同时装到多个 agent
+npx skills add lipeng9401222/lowcode-dsl-gen -a claude-code -a cursor -a codex --copy
+
+# 全局安装：加 -g
+npx skills add lipeng9401222/lowcode-dsl-gen -a claude-code -g --copy
+```
+
+> **关于默认 symlink 模式的已知问题**：Skills CLI 默认走 symlink 模式——先把副本放到
+> `.agents/skills/<skill>`，再从各 IDE 目录软链回去。但 symlink 可能因权限或工具版本
+> 问题创建失败，导致只有 `.agents/skills/` 下有内容而 `.claude/skills/` 下没有。
+> 使用 `--copy` 可避免此问题。安装后用 `npx skills list` 或 `./bin/setup.sh --check` 验证。
+
+### 方式三：手动软链（兜底）
 
 不依赖任何 CLI，直接把本目录软链到对应工具的 skills 目录：
 
@@ -51,6 +61,8 @@ ln -s "$PWD" ~/.claude/skills/lowcode-dsl-gen
 ln -s "$PWD" ~/.codeium/windsurf/skills/lowcode-dsl-gen
 # CodeBuddy
 ln -s "$PWD" ~/.codebuddy/skills/lowcode-dsl-gen
+# Antigravity
+ln -s "$PWD" ~/.gemini/config/skills/lowcode-dsl-gen
 ```
 
 也可在 `~/.codex/config.toml` 添加 `[[skills]] path = "<本目录绝对路径>"` 显式注册。
@@ -67,6 +79,10 @@ ln -s "$PWD" ~/.codebuddy/skills/lowcode-dsl-gen
 - PyYAML（按需 `pip install pyyaml`）
 
 ## 版本
+
+v1.4.5 — 落盘前确认硬闸（脚本层强制逐资产逐文件确认）。修复"AI 一股脑生成全部资产、未逐项人工核对"问题：为 `add_codeitem.py / add_mis_field.py / add_module.py / add_page.py` 补齐 `--dry-run`（原先缺失，无法预览）；全部 7 个落盘脚本（含 `add_event/add_workflow/update_workflow`）统一加 `--confirm` 硬闸——不加 `--confirm` 一律拒绝写文件，必须先 `--dry-run` 预览。新增 `--items-file / --fields-file / --sub-modules-file / --query-file` 文件传参，避免超长中文 JSON 撑爆命令行导致执行环境挂起。SKILL.md「落盘前确认红线」明令禁止批处理循环脚本、禁止手写 YAML/JSON 绕过脚本、禁止用一句"计划已批准"当全量落盘许可。
+
+v1.4.4 — 恢复落盘前人工确认门禁。修复「资产被一股脑生成、未经人工核对」问题：`SKILL.md` 新增「落盘前确认红线」（所有模式强制：无 pending open question、显式批准、禁止 model_inferred 内容落盘、逐资产可追溯）；调度流程从「单次批准→批量落盘」改为多资产/整应用「分阶段逐资产确认」，单 workflow/event 快速通道保留提速；`whole-app` 与多资产 `existing-app` 落盘前重新强制 `validate_plan.py`。`validate_plan.py` 与 IR 解耦：缺 `ir.yml` 不再硬失败（IR 仍可选），改由主计划资产队列表 + 子计划完整性兜底审计，并新增对应回归用例。
 
 v1.4.3 — 默认资产收敛 + 安装文档定向化。`scaffold_app.py` 默认只创建 5 个核心目录（codeitem/mis/module/workflow/page），`event`（动作流）、`api`（接口元数据）改为按需创建，分别需 `--with-event` / `--with-api`；SKILL.md 增加「API / Event 按需门禁」，未明确要求时不生成 event/api 资产。README 安装段落改为优先使用 Skills CLI 定向安装（`-a claude-code` / `--copy`），并补充 `.agents/skills` 软链机制说明与排查指引。
 

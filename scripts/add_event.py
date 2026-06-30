@@ -58,6 +58,8 @@ def cli():
     parser.add_argument("--from-ir", help="兼容：从 lowcode-dsl-gen IR 文件读取 event spec")
     parser.add_argument("--asset-id", help="兼容：IR 中 event asset id；多个 event 时必填")
     parser.add_argument("--dry-run", action="store_true", help="只校验/打印参数，不创建目录、不写文件")
+    parser.add_argument("--confirm", action="store_true",
+                        help="确认落盘。不加 --confirm 一律拒绝写文件，必须先 --dry-run 预览（落盘前确认红线）")
     parser.add_argument("--app-root", "--metadata", dest="app_root",
                         help="应用根目录路径（<apptag>/）。--metadata 是旧别名")
     parser.add_argument("--name", help="动作流名称（中文）")
@@ -170,6 +172,13 @@ def cli():
 
     if args.dry_run:
         print_ok(f"event dry-run 通过: {target}")
+    elif not args.confirm:
+        print_err(
+            "拒绝落盘：动作流必须经人工预览确认后才能写入。\n"
+            "请先用 --dry-run 预览，确认无误后再加 --confirm 落盘。\n"
+            "（落盘前确认红线：禁止未经 dry-run 预览 + --confirm 确认直接写文件）"
+        )
+        return 1
     else:
         event_dir.mkdir(parents=True, exist_ok=True)
         target.write_text(rendered, encoding="utf-8")

@@ -29,6 +29,45 @@ spec:
 - `../../references/event/动作流/检查清单/六大检查清单.md`
 - `../../references/event/动作流/常见错误/常见错误与禁止事项.md`
 
+## Grill Gate 追问门禁
+
+生成前必须确认以下关键事实，未确认的不得用模型猜测静默补齐。
+
+### 必问事实
+
+| 事实 | 说明 | 禁止猜测 |
+|-----|------|---------|
+| `name` 动作流名称 | 中文名称 | ❌ |
+| `sign` 动作流标识 | 英文标识，唯一 | ❌ |
+| `triggerType` 触发类型 | webhook / form / timer / custom | ❌ |
+| `bizAction` 业务动作 | 完整的 REST 服务方法名 | ❌ |
+| `contextClass` 上下文类 | 完整 Java 类路径 | ❌ |
+
+### 可推断 / 安全默认
+
+| 事实 | 来源 | 默认值 |
+|-----|------|-------|
+| `apptag` | 从应用上下文推断 | `repo_inferred` |
+| `webhookUrl` | 标准三段式自动生成 | `safe_default`（空） |
+| `nodes` | 基础三段式骨架 | `safe_default` |
+
+### 禁止猜测
+
+- **`bizAction` 业务动作名**：必须是真实存在的 REST 服务方法，不得臆造
+- **`contextClass` 上下文类**：必须是真实 Java 类路径，不得臆造
+- **`sign` 动作流标识**：影响唯一性和引用关系，不得猜测
+- **节点编排细节**：高级分支/循环/代码节点必须先读 references 并确认
+
+### 确认矩阵
+
+| 确认项 | 必须 | 说明 |
+|-------|------|------|
+| 动作流名称和标识 | ✅ | 关键身份标识 |
+| 触发类型 | ✅ | 决定骨架结构 |
+| 业务动作（bizAction） | ✅ | REST 服务绑定 |
+| 上下文类（contextClass） | ✅ | 数据上下文 |
+| 节点编排 | 非标准时 ✅ | 高级场景 |
+
 ## Steps 执行步骤
 
 1. 确认用户明确要求了 event / 动作流，或该 IR 来自 workflow ruleguid 依赖。
@@ -42,7 +81,7 @@ spec:
    ```bash
    python3 ../../scripts/add_event.py --from-ir <ir.yml> --asset-id <asset-id> --app-root <app-root> --dry-run
    ```
-6. 批准后去掉 `--dry-run` 再执行。
+6. 批准且经用户确认后，去掉 `--dry-run` 并加 `--confirm` 落盘（不加 `--confirm` 会被拒绝）。
 7. 校验：
    ```bash
    python3 ../../scripts/check_dsl.py <event-file>

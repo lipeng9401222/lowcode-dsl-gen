@@ -95,10 +95,12 @@
 | `isQuickCreate` | int | ❌ | 是否快捷创建 (0/1) |
 | `iconType` | string | ❌ | 图标类型 |
 | `shortPath` | string | ❌ | 短路径 |
-| `auth` | object | ❌ | 模块授权（见下） |
+| `auth` | array | ❌ | 模块授权数组（见下） |
 | `items` | array | ❌ | 子模块数组（结构与根相同） |
 
-### auth 子对象字段
+### auth 数组项字段
+
+`auth` 是一个数组，每个元素为一条授权记录：
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -174,16 +176,16 @@ isQuickCreate: 0
 iconType: ""
 shortPath: ""
 
-# 模块授权
+# 模块授权（数组格式）
 auth:
-  moduleGuid: "83d5faef-403c-4fd0-ab08-12549318d7fb"
-  allowTo: ""
-  allowType: ""
-  isFromOa: 0
-  isFromSoa: 0
-  rightType: ""
-  moduleRightMode: ""
-  tenantGuid: ""
+  - moduleGuid: "83d5faef-403c-4fd0-ab08-12549318d7fb"
+    allowTo: ""
+    allowType: ""
+    isFromOa: 0
+    isFromSoa: 0
+    rightType: ""
+    moduleRightMode: ""
+    tenantGuid: ""
 
 items:
   - code: "95440001"
@@ -199,14 +201,14 @@ items:
     isUse: 0
     # ... 其他字段同根模块
     auth:
-      moduleGuid: "84f10e3a-d861-4b3f-8df9-9464db53a17f"
-      allowTo: "22e58fe5-74b1-45ad-94cf-398a0349ae44"
-      allowType: "Role"
-      isFromOa: 0
-      isFromSoa: 0
-      rightType: ""
-      moduleRightMode: ""
-      tenantGuid: ""
+      - moduleGuid: "84f10e3a-d861-4b3f-8df9-9464db53a17f"
+        allowTo: "22e58fe5-74b1-45ad-94cf-398a0349ae44"
+        allowType: "Role"
+        isFromOa: 0
+        isFromSoa: 0
+        rightType: ""
+        moduleRightMode: ""
+        tenantGuid: ""
 ```
 
 ## 简化最小示例
@@ -333,8 +335,8 @@ items:
 
 ### `auth` 字段
 
-- `auth` 描述**默认权限**配置；实际权限可在线上界面调整
-- `moduleGuid` 必须等于该层级模块自己的 `guid`
+- `auth` 是**数组**，每条记录描述一个授权配置；实际权限可在线上界面调整
+- 每条记录的 `moduleGuid` 必须等于该层级模块自己的 `guid`
 - `allowType: Role` 表示授权给角色；`allowTo` 是角色 GUID
 
 ## 校验规则

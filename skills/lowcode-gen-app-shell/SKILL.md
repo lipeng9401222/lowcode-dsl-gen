@@ -44,6 +44,50 @@ asset:
 - `../../references/appinfo/应用配置/index.md`
 - `../../references/appref/引用配置/index.md` 仅当 `spec.appref.enabled=true` 时才读
 
+## Grill Gate 追问门禁
+
+生成前必须确认以下关键事实，未确认的不得用模型猜测静默补齐。
+
+### 必问事实
+
+| 事实 | 说明 | 禁止猜测 |
+|-----|------|---------|
+| `apptag` 应用标签 | 英文标识，决定目录路径和隔离空间 | ❌ |
+| `applicationname` 应用名称 | 中文名称 | ❌ |
+| `developerstag` 开发者标签 | 如 `epoint`，但不是无痕默认值 | ❌ |
+| `kitid` 套件 ID | 如 `businessprocess`，但不是无痕默认值 | ❌ |
+
+### 可推断 / 安全默认
+
+| 事实 | 来源 | 默认值 |
+|-----|------|-------|
+| `tenantguid` | 单租户场景 | 空字符串（`safe_default`，reason: 单租户） |
+| `baseouguid` | 单机构场景 | 空字符串（`safe_default`，reason: 单机构） |
+| `createDirs` | 5 个核心目录 | `[codeitem, mis, module, pagedesigne, workflow]`（`safe_default`） |
+
+### 可选追问
+
+- `categories` 应用分类：空数组需标记为"用户确认不分类"或从仓库推断
+- `appref` 引用配置：是否需要跨应用引用
+- 是否需要 event/api 目录：默认不建，需用户明确
+
+### 禁止猜测
+
+- **`apptag`**：影响所有资产路径，不得从应用名称翻译臆造
+- **`developerstag`**：`epoint` 只是推荐值，不是无痕默认值，必须确认
+- **`kitid`**：`businessprocess` 只是推荐值，不是无痕默认值，必须确认
+
+### 确认矩阵
+
+| 确认项 | 必须 | 说明 |
+|-------|------|------|
+| apptag | ✅ | 核心身份标识 |
+| 应用名称 | ✅ | UI 显示 |
+| developerstag | ✅ | 开发者标识 |
+| kitid | ✅ | 套件类型 |
+| categories | ✅ | 即使为空也需确认 |
+| 是否需要 event/api | ✅ | 按需门禁 |
+
 ## Steps 执行步骤
 
 1. 用 `../../scripts/path_resolver.py` 计算应用根目录，禁止手写 `metadata/` 路径。

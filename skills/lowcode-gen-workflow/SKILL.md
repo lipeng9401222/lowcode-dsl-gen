@@ -58,6 +58,19 @@ spec:
 - `../../references/workflow/工作流/生成与校验/07-字段类型约束表.md`
 - 仅当匹配复杂特性时才读场景文档。
 
+## Grill Gate 追问门禁
+
+工作流的追问门禁通过 `spec.confirmations` 确认矩阵实现。核心确认项（`processGoal`、`activityChain`、`transactors`、`pageTags`、`sqlTableName`）必须全部 `confirmed` 后才能进入 dry-run。
+
+**禁止猜测**：
+- 流程节点链路（活动数量、顺序、分支条件）
+- 处理人来源（角色/人员/发起人/表达式）
+- 条件分支的具体判断值
+- `workflowContext.fieldname` 字段名
+- 外部方法（method）和事件（workflowEvent）的 ruleguid
+
+详见 Steps 步骤 4 的 confirmations 校验规则。
+
 ## Steps 执行步骤
 
 1. 读取 activities 之前先校验 `spec.operationMode`，合法值只有 `create/revise-plan/update-existing`。
@@ -85,11 +98,12 @@ spec:
    ```bash
    python3 ../../scripts/add_workflow.py --app-root <app-root> --name "请假审批流程" --approvers "部门经理审批" --material "请假申请表" --dry-run
    ```
+   把 dry-run 预览展示给用户，确认后去掉 `--dry-run` 并加 `--confirm` 落盘（不加 `--confirm` 会被拒绝）。
 10. `update-existing`（改已有）执行：
    ```bash
    python3 ../../scripts/update_workflow.py --workflow-file <workflow-file> --activities-json '[{"name":"申请","type":"apply"},{"name":"科室负责人审批","type":"approve","oldName":"部门经理审批"}]' --dry-run
    ```
-   批准后去掉 `--dry-run` 再跑同一条命令。
+   批准且用户确认后，去掉 `--dry-run` 并加 `--confirm` 再跑同一条命令（不加 `--confirm` 会被拒绝）。
 11. `revise-plan`（计划纠错）不跑落盘脚本。更新 workflow 子计划和 Mermaid 预览，然后再次请求确认。
 12. 落盘后校验：
    ```bash
@@ -105,3 +119,4 @@ spec:
 - 含“否则/不满足”的条件必须使用显式的互补条件（complementary conditions）。
 - `workflowContext.fieldname` 必须与条件占位符（如 `[#=leave_days#]`）一致。
 - 字段权限、通过率、超时、workflow event 等关键词必须映射到对应的 JSON 输入，不得忽略。
+- `workflowProcessVersion` 绝不能为空，必须包含 `processversionguid`、`processguid`、`version`、`status`、`designversion` 等完整版本信息。校验器会对缺失或为空的情况报 error。

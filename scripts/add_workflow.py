@@ -852,6 +852,8 @@ def cli():
     parser.add_argument("--from-ir", help="兼容：从 lowcode-dsl-gen IR 文件读取 workflow spec")
     parser.add_argument("--asset-id", help="兼容：IR 中 workflow asset id；多个 workflow 时必填")
     parser.add_argument("--dry-run", action="store_true", help="只校验/打印参数，不创建目录、不写文件")
+    parser.add_argument("--confirm", action="store_true",
+                        help="确认落盘。不加 --confirm 一律拒绝写文件，必须先 --dry-run 预览（落盘前确认红线）")
     parser.add_argument("--app-root", "--metadata", dest="app_root",
                         help="应用根目录路径（<apptag>/）。--metadata 是旧别名，仍可用")
     parser.add_argument("--name", help="流程名称（中文）")
@@ -1491,6 +1493,13 @@ def cli():
 
     if args.dry_run:
         print_ok(f"workflow dry-run 通过: {target}")
+    elif not args.confirm:
+        print_err(
+            "拒绝落盘：工作流必须经人工预览确认后才能写入。\n"
+            "请先用 --dry-run 预览，确认无误后再加 --confirm 落盘。\n"
+            "（落盘前确认红线：禁止未经 dry-run 预览 + --confirm 确认直接写文件）"
+        )
+        return 1
     else:
         workflow_dir.mkdir(parents=True, exist_ok=True)
         yaml_dump(data, target)

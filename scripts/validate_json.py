@@ -160,6 +160,11 @@ def validate_page(path: Path, result: Result) -> None:
             props = {}
         props = props or {}
 
+        if node.get("type") == "collapse":
+            children = node.get("children")
+            if not isinstance(children, list) or not children:
+                result.warn(path_label, f"{owner} is a collapse without children")
+
         model_value = props.get("modelValue")
         if model_value and component_type != "table":
             if not model_ref_exists(model_value, models, allow_root=False):

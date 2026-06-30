@@ -223,7 +223,10 @@ def _validate_main_plan(text: str, result: PlanValidation) -> None:
 def _validate_ir(ir_path: Path, result: PlanValidation, *, required: bool) -> dict[str, dict[str, str]]:
     if not ir_path.is_file():
         if required:
-            result.err(f"缺少 IR 文件: {ir_path}")
+            # IR 已降级为可选机器缓存：缺失不再硬失败，改由主计划资产表 + 子计划审计落盘内容
+            result.warn(
+                f"未生成 ir.yml（IR 可选）：{ir_path}；将基于主计划资产队列表与子计划审计落盘内容"
+            )
         else:
             result.warn(f"规划阶段尚未生成 IR 文件: {ir_path}")
         return {}
@@ -328,6 +331,35 @@ def _validate_ir_paths(plan_path: Path, plan_dir: Path, text: str, result: PlanV
     return canonical
 
 
+def _validate_subplans_from_main(
+    plan_dir: Path,
+    main_statuses: dict[str, str],
+    result: PlanValidation,
+) -> None:
+    """无 ir.yml 时的落盘前确认门禁：基于主计划资产队列表审计每个资产子计划的完整性。
+
+    这是「落盘前确认红线」在脚本侧的兜底实现，确保即使不生成 IR，
+    每个待落盘资产也必须有完整、可追溯的人工确认子计划，挡住 AI 一股脑生成。
+    """
+    if not main_statuses:
+        result.err(
+            "已进入落盘阶段但主计划缺少资产队列表（| asset id | type | status |），"
+            "无法审计落盘内容；请补全资产队列或生成 ir.yml"
+        )
+        return
+    for asset_id, main_status in sorted(main_statuses.items()):
+        matches = sorted(plan_dir.glob(f"*/{asset_id}-plan.md"))
+        if not matches:
+            result.err(f"缺少资产子计划: {plan_dir}/<type>/{asset_id}-plan.md")
+            continue
+        subplan = matches[0]
+        asset_type = subplan.parent.name
+        _validate_subplan_content(subplan, asset_type, result)
+        sub_status = _extract_subplan_status(subplan, result)
+        if main_status and sub_status and main_status != sub_status:
+            result.err(f"资产状态不一致: 主计划 {asset_id}={main_status}, 子计划={sub_status}")
+
+
 def validate_plan(plan_path: Path) -> int:
     result = PlanValidation()
     plan_path = plan_path.resolve()
@@ -357,6 +389,9 @@ def validate_plan(plan_path: Path) -> int:
             result,
             require_subplans=requires_ir,
         )
+    elif requires_ir:
+        # 已进入落盘阶段但未生成 IR：用主计划资产表 + 子计划完整性兜底审计
+        _validate_subplans_from_main(plan_dir, main_statuses, result)
     return result.report()
 
 

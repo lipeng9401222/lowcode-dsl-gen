@@ -183,6 +183,7 @@ epoint-ipd-action/src/main/resources/META-INF/resources/
 | 6 | 应用名称 `applicationname` | — | ✅ | 中文，如 `采购立项` |
 | 7 | 套件标识 `kitid` | `businessprocess` | ❌ | 多套件嵌套时填全路径，如 `frame.user` |
 | 8 | 是否引用其他应用资产 | 否 | ❌ | 是则进入 `appref.lowcode.yml` 子流程 |
+| 9 | 是否需要动作流 `event` / 接口元数据 `api` | 否 | ✅ | **必须显式确认一次**：动作流=接口编排/状态联动/Webhook/定时/推送/回调；默认都不创建，推荐「否」。答「是」才建对应目录 |
 
 > **默认值规则**：新建应用 `baseouguid` 默认为空；历史应用可能存在 `baseouguid: epoint`，只作为兼容示例，不作为新建默认值。
 
@@ -199,6 +200,8 @@ epoint-ipd-action/src/main/resources/META-INF/resources/
 - 分类目录：<分类... 或 不分类>
 - 套件标识：<kitid>
 - 引用其他应用资产：<是/否，若是列出引用>
+- 需要动作流 event：<是/否，默认否>
+- 需要 api 接口元数据：<是/否，默认否>
 - 计划文档：.lowcode-plans/<apptag>-plan.md
 - 对话追溯：已记录每轮问题、选项、用户回复和确认结果
 - 将创建的目录（路径以工程根为基准）：
@@ -208,8 +211,8 @@ epoint-ipd-action/src/main/resources/META-INF/resources/
 ├── module/
 ├── workflow/
 ├── pagedesigne/
-├── event/                    ← 默认不创建；用户明确要求动作流时加 --with-event
-├── api/                      ← 默认不创建；用户明确要求接口元数据时加 --with-api
+├── event/                    ← 仅当上面"需要动作流"确认为是时才创建（--with-event）
+├── api/                      ← 仅当上面"需要 api"确认为是时才创建（--with-api）
 ├── appinfo.lowcode.yml      ← 批准后生成
 └── appref.lowcode.yml       ← 批准后仅当声明引用时生成
 
@@ -285,9 +288,9 @@ epoint-ipd-action/src/main/resources/META-INF/resources/
 
 1. 先形成"主体架构/应用蓝图"，只确认业务目标、边界、是否新建或补充、以及页面/流程的大方向；推断值标记为建议。
 2. 再形成"基本信息草案"，确认 appinfo 所需的名称、apptag、分类、套件、目录归属。
-3. 然后按 `codeitem → mis → module → pagedesigne → workflow → event` 的顺序分轮确认资产，每轮只问当前阶段。
+3. 然后按 `codeitem → mis → module → pagedesigne → workflow` 的顺序分轮确认资产，每轮只问当前阶段。`event`（动作流）、`api`（接口元数据）默认不纳入，但**必须在资产规划阶段显式确认一次**：明确问用户「是否需要动作流（接口编排/状态联动/Webhook/定时/推送/回调）或 api 接口元数据？默认都不创建」，推荐「否」；用户答「是」才追加对应资产并继续逐资产确认，答「否」则不建目录、不生成。确认结果记入计划 `对话确认记录`。
 4. 从第一轮起持续维护 `.lowcode-plans/<apptag>-plan.md`；每个阶段确认后都更新对话确认记录、阶段确认结果和资产拆分表；全部阶段确认后再整理完整"生成计划"章节。
-5. 用户明确批准后才落盘；落盘后执行 `python3 scripts/validate_yml.py --check-refs <app-root>`，**交付前最终校验**统一改用 `python3 scripts/validate_yml.py --strict --check-refs <app-root>`（spec v2 严格模式：旧驼峰键 / `tableid` 残留 / `metadata/` 老结构 一律升级为 error）。
+5. 用户明确批准计划后才开始落盘，且**必须分阶段逐资产落盘，禁止一次性批量全落盘**：按 `codeitem → mis → module → pagedesigne → workflow` 顺序（`event`/`api` 仅当用户明确要求时才纳入），每个资产先 `--dry-run` → 展示该资产 dry-run 结果与关键字段 → 用户确认（“继续/调整”）→ 落盘该资产 → `validate_yml.py`；用户每确认一个才落一个，可随时叫停或纠偏。`whole-app` 落盘前还须通过 `python3 scripts/validate_plan.py .lowcode-plans/<apptag>-plan.md`。全部资产落盘后，**交付前最终校验**统一执行 `python3 scripts/validate_yml.py --strict --check-refs <app-root>`（spec v2 严格模式：旧驼峰键 / `tableid` 残留 / `metadata/` 老结构 一律升级为 error）。
 
 缺少页面信息时，把用户说的 `pagedesign` 统一映射到页面设计器资产 `pagedesigne`，落盘到 `page/*.json`，并优先调用 `scripts/add_page.py`。
 
@@ -327,6 +330,8 @@ open_questions: []
 ## 脚本调用 cheatsheet
 
 每个脚本都内置 `--help`，参数缺失会自报使用方法。这里给出**完整调用示例**，供查阅时复制：
+
+> ⚠️ **以下示例为简洁省略了 `--dry-run` / `--confirm`。实际落盘必须两步走**：先 `add_*.py ... --dry-run` 预览内容并展示给用户 → 用户逐项确认 → 再 `add_*.py ... --confirm` 落盘。不加 `--confirm` 脚本会拒绝写文件。
 
 ```bash
 # 1. 新建应用骨架（建目录 + appinfo + 可选 appref）
@@ -401,8 +406,10 @@ python3 scripts/validate_yml.py --strict --check-refs /path/to/<apptag>
 
 ### 资产层硬约束（fail-fast）
 
-- `add_codeitem.py` 在新建模式下若未提供 `--items` 或 `--items-json`，**直接报错退出**。要先建空骨架（不推荐）必须显式加 `--allow-empty`。
-- `add_mis_field.py --create` 若未提供至少 1 条业务字段（`--fields-json`，主键 rowguid 不计入业务字段），**直接报错退出**。要先建只含主键的骨架（不推荐）必须显式加 `--allow-empty-fields`。
+- **落盘前确认红线（所有 add_*/update_ 脚本）**：必须先 `--dry-run` 预览内容并展示给用户，用户逐项确认后再加 `--confirm` 落盘；**不加 `--confirm` 一律拒绝写文件**。严禁写批处理循环脚本一次性落多个资产，也严禁手写 YAML/JSON 绕过脚本。
+- **超长/中文 JSON 用文件传参**：`--items-file` / `--fields-file` / `--sub-modules-file` / `--query-file`，避免超长内联 JSON 把命令行撑爆导致执行环境挂起。
+- `add_codeitem.py` 在新建模式下若未提供 `--items` 或 `--items-json`/`--items-file`，**直接报错退出**。要先建空骨架（不推荐）必须显式加 `--allow-empty`。
+- `add_mis_field.py --create` 若未提供至少 1 条业务字段（`--fields-json`/`--fields-file`，主键 rowguid 不计入业务字段），**直接报错退出**。要先建只含主键的骨架（不推荐）必须显式加 `--allow-empty-fields`。
 - 这两个 allow 开关默认**禁用**，仅作兜底。AI 不应主动使用，必须先把子项/字段问清楚再调脚本。
 
 ### 工作流生成 5 条重点检查（参考 `references/workflow/工作流/index.md`）

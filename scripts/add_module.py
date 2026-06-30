@@ -27,6 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from _common import (  # noqa: E402
     assert_no_metadata_layer,
+    check_landing,
     gen_uuid,
     load_template,
     now_str,
@@ -34,10 +35,11 @@ from _common import (  # noqa: E402
     print_info,
     print_ok,
     print_warn,
+    read_json_param,
     render_template,
     safe_filename,
-    yaml_dump,
-    yaml_load,
+    yaml_dump_str,
+    yaml_load_str,
 )
 
 
@@ -108,16 +110,18 @@ def build_sub_module(sub: dict, parent_guid: str, order: int) -> dict:
         "isQuickCreate": 0,
         "iconType": "",
         "shortPath": "",
-        "auth": {
-            "moduleGuid": guid,
-            "allowTo": "",
-            "allowType": "",
-            "isFromOa": 0,
-            "isFromSoa": 0,
-            "rightType": "",
-            "moduleRightMode": "",
-            "tenantGuid": "",
-        },
+        "auth": [
+            {
+                "moduleGuid": guid,
+                "allowTo": "",
+                "allowType": "",
+                "isFromOa": 0,
+                "isFromSoa": 0,
+                "rightType": "",
+                "moduleRightMode": "",
+                "tenantGuid": "",
+            },
+        ],
     }
 
 
@@ -137,9 +141,21 @@ def cli():
         help="子模块 JSON 数组（完整字段）",
     )
     parser.add_argument(
+        "--sub-modules-file",
+        help="子模块 JSON 数组文件路径（与 --sub-modules-json 二选一；避免超长命令行挂起）",
+    )
+    parser.add_argument(
         "--filename", help="自定义文件名（不含扩展名），默认用 name",
     )
     parser.add_argument("--force", action="store_true", help="覆盖已存在文件")
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="只预览将写入的内容，不落盘（逐资产人工确认用）",
+    )
+    parser.add_argument(
+        "--confirm", action="store_true",
+        help="确认落盘。落盘前确认红线：不加 --confirm 一律拒绝写文件，必须先 --dry-run 预览",
+    )
     args = parser.parse_args()
 
     if "--metadata" in sys.argv:
@@ -155,7 +171,6 @@ def cli():
         return 1
 
     module_dir = app_root / "module"
-    module_dir.mkdir(parents=True, exist_ok=True)
 
     base_name = args.filename or safe_filename(args.name)
     target = module_dir / f"{base_name}.module.yml"
@@ -175,37 +190,50 @@ def cli():
         "UPDATE_TIME": now_str(),
     })
 
-    # 写入根模块
-    target.write_text(rendered, encoding="utf-8")
-
-    # 如果有子模块，重新加载并追加
+    # 解析子模块（支持 --sub-modules-json / --sub-modules-file / --sub-modules）
     sub_modules = []
-    if args.sub_modules_json:
-        try:
-            sub_modules = json.loads(args.sub_modules_json)
-        except json.JSONDecodeError as e:
-            print_err(f"--sub-modules-json 解析失败: {e}")
-            return 1
+    try:
+        json_subs = read_json_param(
+            args.sub_modules_json, args.sub_modules_file,
+            expected_type=list, label="--sub-modules-json/--sub-modules-file",
+        )
+    except ValueError as e:
+        print_err(str(e))
+        return 1
+    if json_subs is not None:
+        sub_modules = json_subs
     elif args.sub_modules:
         sub_modules = parse_sub_modules(args.sub_modules)
 
+    # 在内存中算出最终内容（含子模块/url），再统一过落盘门禁
     if sub_modules or args.url:
         try:
-            data = yaml_load(target)
+            data = yaml_load_str(rendered)
         except Exception as e:
-            print_err(f"重新加载 yml 失败: {e}")
+            print_err(f"渲染结果解析失败: {e}")
             return 1
         if sub_modules:
             items = []
             for i, sub in enumerate(sub_modules, start=1):
                 items.append(build_sub_module(sub, root_guid, order=i * 10))
             data["items"] = items
-        # 修复 url 字段（用户提供）
         if args.url:
             data["url"] = args.url
             data["routePath"] = args.url
             data["routePathName"] = args.url.rsplit("/", 1)[-1] if args.url else ""
-        yaml_dump(data, target)
+        final_content = yaml_dump_str(data)
+    else:
+        final_content = rendered
+
+    should_write, code = check_landing(
+        dry_run=args.dry_run, confirm=args.confirm,
+        target=target, preview=final_content, asset_label="模块",
+    )
+    if not should_write:
+        return code
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(final_content, encoding="utf-8")
 
     print_ok(f"模块已创建: {target}")
     print_info(f"  - 名称: {args.name} (code={args.code})")

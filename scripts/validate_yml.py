@@ -489,7 +489,25 @@ def validate_module(path: Path, data: dict, result: ValidationResult):
     elif not isinstance(code, str):
         result.warn(p, f"code 应为字符串，实际 {type(code).__name__}")
 
-    # 子模块 parentGuid 校验
+    # auth 必须为 array（数组格式），每条记录的 moduleGuid 应指向本层模块 guid
+    self_guid = data.get("guid")
+    auth = data.get("auth")
+    if auth is not None:
+        if not isinstance(auth, list):
+            result.err(p, f"auth 应为 array（数组），实际 {type(auth).__name__}")
+        else:
+            for ai, rec in enumerate(auth):
+                if not isinstance(rec, dict):
+                    result.warn(p, f"auth[{ai}] 不是对象")
+                    continue
+                rec_guid = rec.get("moduleGuid")
+                if self_guid and rec_guid and rec_guid != self_guid:
+                    result.warn(
+                        p,
+                        f"auth[{ai}].moduleGuid '{rec_guid}' 不等于本层模块 guid '{self_guid}'",
+                    )
+
+    # 子模块 parentGuid + auth 校验
     items = data.get("items") or []
     root_guid = data.get("guid")
     for i, sub in enumerate(items):
@@ -497,6 +515,21 @@ def validate_module(path: Path, data: dict, result: ValidationResult):
             continue
         if sub.get("parentGuid") != root_guid:
             result.warn(p, f"子模块 {i + 1} parentGuid 不指向根模块 guid")
+        sub_auth = sub.get("auth")
+        if sub_auth is not None:
+            if not isinstance(sub_auth, list):
+                result.err(p, f"子模块 {i + 1} auth 应为 array（数组），实际 {type(sub_auth).__name__}")
+            else:
+                sub_guid = sub.get("guid")
+                for aj, rec in enumerate(sub_auth):
+                    if not isinstance(rec, dict):
+                        continue
+                    rec_guid = rec.get("moduleGuid")
+                    if sub_guid and rec_guid and rec_guid != sub_guid:
+                        result.warn(
+                            p,
+                            f"子模块 {i + 1} auth[{aj}].moduleGuid '{rec_guid}' 不指向子模块 guid '{sub_guid}'",
+                        )
 
     if not any(p == path_ for path_, _ in result.errors):
         result.ok(p)
@@ -914,13 +947,26 @@ def validate_workflow(path: Path, data: dict, result: ValidationResult):
     pversion_obj = (
         version.get("workflowProcessVersion")
         or version.get("WorkflowProcessVersion")
-        or {}
     )
+    if not isinstance(pversion_obj, dict) or not pversion_obj:
+        result.err(
+            p,
+            "workflowVersion.workflowProcessVersion 缺失或为空，"
+            "必须包含 processversionguid/processguid/version/status/designversion 等流程版本信息",
+        )
+        # 后续字段校验依赖此对象，设为空 dict 避免崩溃但已记录 error
+        pversion_obj = {}
+    else:
+        # 校验 workflowProcessVersion 必填字段
+        for req_field in ("processversionguid", "processguid", "version", "status"):
+            val = pversion_obj.get(req_field)
+            if val is None or (isinstance(val, str) and not val.strip()):
+                result.err(p, f"workflowProcessVersion.{req_field} 缺失或为空")
+        # status 必须为 10（启用状态），兼容数字与字符串形式
+        status_val = pversion_obj.get("status")
+        if status_val is not None and status_val != 10 and status_val != "10":
+            result.err(p, f"workflowProcessVersion.status 应为 10（启用），实际 {status_val!r}")
     process_version_guid = (
-        pversion_obj.get("processversionguid")
-        if isinstance(pversion_obj, dict)
-        else None
-    ) or (
         pversion_obj.get("processversionguid")
         if isinstance(pversion_obj, dict)
         else None

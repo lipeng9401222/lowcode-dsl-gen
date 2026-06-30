@@ -35,13 +35,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from _common import (  # noqa: E402
     assert_no_metadata_layer,
+    check_landing,
     parse_json_arg,
     print_err,
     print_info,
     print_ok,
     print_warn,
+    read_json_param,
     safe_filename,
     yaml_dump,
+    yaml_dump_str,
     yaml_load,
 )
 
@@ -65,9 +68,36 @@ def parse_items_str(items_str: str) -> list[dict]:
         result.append(item)
     return result
 
+def _flatten_items(items: list[dict]) -> list[dict]:
+    """将可能含 label/children 嵌套结构的 items 扁平化为 codetext/codevalue 列表.
+
+    AI agent 常生成如下格式：
+        [{"label": "项目类型", "children": [{"codetext": "研发项目", "codevalue": "01"}, ...]}]
+    本函数自动提取 children 中的子项，忽略外层分组信息。
+    """
+    flat: list[dict] = []
+    for item in items:
+        if "children" in item and isinstance(item["children"], list):
+            # 嵌套结构：提取 children
+            flat.extend(_flatten_items(item["children"]))
+        elif "codetext" in item:
+            flat.append(item)
+        elif "label" in item and "value" in item:
+            # 兼容 label/value 格式
+            flat.append({
+                "codetext": item["label"],
+                "codevalue": item["value"],
+                **{k: v for k, v in item.items() if k not in ("label", "value")},
+            })
+        else:
+            # 未知格式，原样保留让后续逻辑报错
+            flat.append(item)
+    return flat
+
 
 def build_codeitem_yaml(name: str, description: str, items: list[dict]) -> str:
     """直接构造代码项 yml 字符串（保持注释和顺序）."""
+    items = _flatten_items(items)
     lines = []
     lines.append("# 固定标识")
     lines.append("type: codeitem")
@@ -112,6 +142,10 @@ def cli():
         "--items-json",
         help="子项 JSON 数组（完整字段，支持嵌套 children 等）",
     )
+    parser.add_argument(
+        "--items-file",
+        help="子项 JSON 数组文件路径（与 --items-json 二选一；超长/含中文时用文件避免命令行挂起）",
+    )
 
     parser.add_argument(
         "--single-ext", action="store_true",
@@ -121,19 +155,31 @@ def cli():
         "--force", action="store_true", help="文件已存在时覆盖",
     )
     parser.add_argument(
+        "--dry-run", action="store_true",
+        help="只预览将写入的内容，不落盘（逐资产人工确认用）",
+    )
+    parser.add_argument(
+        "--confirm", action="store_true",
+        help="确认落盘。落盘前确认红线：不加 --confirm 一律拒绝写文件，必须先 --dry-run 预览",
+    )
+    parser.add_argument(
         "--allow-empty", action="store_true",
         help="允许创建空 items 代码项（默认拒绝；SKILL.md 资产信息完整性门禁要求先与用户确认子项）",
     )
     args = parser.parse_args()
 
-    # 解析 items
+    # 解析 items（支持 --items-json / --items-file / --items / --append-items）
     items = []
-    if args.items_json:
-        try:
-            items = parse_json_arg(args.items_json, expected_type=list, label="--items-json")
-        except ValueError as e:
-            print_err(str(e))
-            return 1
+    try:
+        json_items = read_json_param(
+            args.items_json, args.items_file,
+            expected_type=list, label="--items-json/--items-file",
+        )
+    except ValueError as e:
+        print_err(str(e))
+        return 1
+    if json_items is not None:
+        items = json_items
     elif args.items:
         items = parse_items_str(args.items)
     elif args.append_items:
@@ -162,10 +208,17 @@ def cli():
             existing_items = data.get("items") or []
             existing_items.extend(items)
             data["items"] = existing_items
+            preview = yaml_dump_str(data)
+            should_write, code = check_landing(
+                dry_run=args.dry_run, confirm=args.confirm,
+                target=target, preview=preview, asset_label=f"代码项（追加 {len(items)} 子项）",
+            )
+            if not should_write:
+                return code
             yaml_dump(data, target)
             print_ok(f"已向 {target.name} 追加 {len(items)} 个子项")
         else:
-            print_warn("未提供 --items / --items-json / --append-items，无操作")
+            print_warn("未提供 --items / --items-json / --items-file / --append-items，无操作")
         return 0
 
     # 新建模式
@@ -186,7 +239,6 @@ def cli():
         return 1
 
     codeitem_dir = app_root / "codeitem"
-    codeitem_dir.mkdir(parents=True, exist_ok=True)
 
     ext = ".yml" if args.single_ext else ".codeitem.yml"
     target = codeitem_dir / f"{safe_filename(args.name)}{ext}"
@@ -207,6 +259,13 @@ def cli():
         items = []
 
     content = build_codeitem_yaml(args.name, args.description, items)
+    should_write, code = check_landing(
+        dry_run=args.dry_run, confirm=args.confirm,
+        target=target, preview=content, asset_label="代码项",
+    )
+    if not should_write:
+        return code
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
     print_ok(f"代码项已创建: {target}")
     print_info(f"  - 名称: {args.name}")

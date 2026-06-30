@@ -88,16 +88,16 @@ iconType: ""
 # 短路径
 shortPath: ""
 
-# 模块授权
+# 模块授权（数组，每条为一个授权记录）
 auth:
-  moduleGuid: "{{GUID}}"
-  allowTo: ""
-  allowType: ""
-  isFromOa: 0
-  isFromSoa: 0
-  rightType: ""
-  moduleRightMode: ""
-  tenantGuid: ""
+  - moduleGuid: "{{GUID}}"
+    allowTo: ""
+    allowType: ""
+    isFromOa: 0
+    isFromSoa: 0
+    rightType: ""
+    moduleRightMode: ""
+    tenantGuid: ""
 
 # 子模块（可选）
 items: []

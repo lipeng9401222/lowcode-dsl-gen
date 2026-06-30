@@ -273,6 +273,12 @@ def yaml_load(path: Path) -> dict:
     return _yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def yaml_load_str(text: str) -> dict:
+    """从 yaml 字符串载入为 dict（用于在内存中预览/改写，不落盘）."""
+    _ensure_yaml()
+    return _yaml.safe_load(text)
+
+
 def yaml_dump_str(data) -> str:
     """转 dict 为 yaml 字符串（保留中文不转义）."""
     _ensure_yaml()
@@ -308,6 +314,62 @@ def parse_json_arg(value: str, *, expected_type=None, label: str = "JSON"):
     if expected_type and not isinstance(data, expected_type):
         raise ValueError(f"{label} 顶层应为 {expected_type.__name__}")
     return data
+
+
+def read_json_param(inline_value, file_path, *, expected_type=None, label: str = "JSON"):
+    """从内联 JSON 字符串 `--xxx-json` 或文件 `--xxx-file` 读取 JSON，二选一。
+
+    设计目的：超长 / 含大量中文的内联 JSON 会把命令行撑爆，导致部分 Agent 执行环境
+    无输出或挂起（参考 testipd 事故）。提供 `--xxx-file` 让调用方把 JSON 写进文件再传路径，
+    规避命令行长度与转义问题。
+
+    返回解析后的对象；两者都未提供时返回 None。
+    """
+    if inline_value and file_path:
+        raise ValueError(f"{label}: 内联 JSON 与文件路径二选一，不要同时提供")
+    if file_path:
+        p = Path(file_path)
+        if not p.is_file():
+            raise ValueError(f"{label}: 文件不存在: {file_path}")
+        return parse_json_arg(p.read_text(encoding="utf-8"), expected_type=expected_type, label=label)
+    if inline_value:
+        return parse_json_arg(inline_value, expected_type=expected_type, label=label)
+    return None
+
+
+def check_landing(*, dry_run: bool, confirm: bool, target, preview: str,
+                  asset_label: str = "资产"):
+    """统一的「落盘前确认红线」门禁：先预览、后确认，才允许写文件。
+
+    返回 (should_write: bool, exit_code: int)：
+    - dry_run=True：打印预览（不写文件），返回 (False, 0)。
+    - 非 dry_run 且 confirm=False：打印拒绝原因，返回 (False, 1)。
+    - 非 dry_run 且 confirm=True：返回 (True, 0)，调用方可落盘。
+
+    用法：
+        should_write, code = check_landing(
+            dry_run=args.dry_run, confirm=args.confirm,
+            target=target, preview=content, asset_label="代码项")
+        if not should_write:
+            return code
+        target.write_text(content, ...)
+    """
+    if dry_run:
+        print_info(f"[dry-run] 将创建/修改{asset_label}: {target}")
+        print_info("[dry-run] 预览内容如下（未写入任何文件）：")
+        print("-" * 60)
+        print(preview)
+        print("-" * 60)
+        print_info("[dry-run] 请人工逐项核对以上内容；确认无误后去掉 --dry-run 并加 --confirm 落盘。")
+        return (False, 0)
+    if not confirm:
+        print_err(
+            f"拒绝落盘：{asset_label} 必须经人工预览确认后才能写入。\n"
+            f"请先用 --dry-run 预览内容，逐项核对无误后再加 --confirm 落盘。\n"
+            f"（落盘前确认红线：禁止未经 dry-run 预览 + --confirm 确认直接写文件，也禁止用批处理脚本绕过）"
+        )
+        return (False, 1)
+    return (True, 0)
 
 
 # ============================================================
@@ -350,9 +412,9 @@ def is_valid_model_path(path: str) -> bool:
 
 
 def safe_filename(name: str) -> str:
-    """把任意字符串转换为安全的文件名（保留中文，去除特殊字符）."""
-    # 仅替换文件系统不允许的字符
-    return re.sub(r'[<>:"/\\|?*]', "_", name).strip()
+    """把任意字符串转换为安全的文件名（保留中文，去除特殊字符，强制小写）."""
+    # 替换文件系统不允许的字符，并强制小写
+    return re.sub(r'[<>:"/\\|?*]', "_", name).strip().lower()
 
 
 # ============================================================

@@ -38,6 +38,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from _common import (  # noqa: E402
     assert_no_metadata_layer,
+    check_landing,
     is_valid_field_name,
     is_valid_mis_name,
     parse_json_arg,
@@ -45,7 +46,9 @@ from _common import (  # noqa: E402
     print_info,
     print_ok,
     print_warn,
+    read_json_param,
     yaml_dump,
+    yaml_dump_str,
     yaml_load,
 )
 from mis_defaults import (  # noqa: E402
@@ -147,6 +150,10 @@ def cli():
         "--fields-json", help="字段数组 JSON，一次添加多个字段",
     )
     parser.add_argument(
+        "--fields-file",
+        help="字段数组 JSON 文件路径（与 --fields-json 二选一；超长/含中文时用文件避免命令行挂起）",
+    )
+    parser.add_argument(
         "--normalize-existing", action="store_true",
         help="补齐已有 mis 文件中所有字段的模板默认属性（需配合 --mis 使用）",
     )
@@ -157,6 +164,14 @@ def cli():
     )
     parser.add_argument("--force", action="store_true", help="覆盖已存在文件")
     parser.add_argument(
+        "--dry-run", action="store_true",
+        help="只预览将写入的内容，不落盘（逐资产人工确认用）",
+    )
+    parser.add_argument(
+        "--confirm", action="store_true",
+        help="确认落盘。落盘前确认红线：不加 --confirm 一律拒绝写文件，必须先 --dry-run 预览",
+    )
+    parser.add_argument(
         "--allow-empty-fields", action="store_true",
         help="允许创建只含主键、无业务字段的 mis 表（默认拒绝；SKILL.md 资产信息完整性门禁要求先与用户确认字段清单）",
     )
@@ -164,6 +179,16 @@ def cli():
 
     def parse_bool(s: str) -> bool:
         return s.lower() in ("true", "1", "yes", "y")
+
+    # 统一解析字段数组（支持 --fields-json / --fields-file）
+    try:
+        fields_param = read_json_param(
+            args.fields_json, args.fields_file,
+            expected_type=list, label="--fields-json/--fields-file",
+        )
+    except ValueError as e:
+        print_err(str(e))
+        return 1
 
     # === 创建模式 ===
     if args.create:
@@ -186,10 +211,9 @@ def cli():
             return 1
 
         mis_dir = app_root / "mis"
-        mis_dir.mkdir(parents=True, exist_ok=True)
 
         ext = ".yml" if args.single_ext else ".mis.yml"
-        target = mis_dir / f"{args.table}{ext}"
+        target = mis_dir / f"{args.table.lower()}{ext}"
 
         if target.exists() and not args.force:
             print_err(f"文件已存在: {target}（--force 覆盖）")
@@ -202,12 +226,8 @@ def cli():
 
         # 解析业务字段
         business_fields_count = 0
-        if args.fields_json:
-            try:
-                extras = parse_json_arg(args.fields_json, expected_type=list, label="--fields-json")
-            except ValueError as e:
-                print_err(str(e))
-                return 1
+        if fields_param is not None:
+            extras = fields_param
             existing_names = {f.get("name") for f in initial_fields}
             for f in extras:
                 field_name = f["name"]
@@ -238,6 +258,15 @@ def cli():
             print_warn("已显式允许创建只含主键的 mis 表（--allow-empty-fields），后续仍需补业务字段")
 
         data = build_mis_yaml(args.table, args.table_desc, initial_fields)
+        preview = yaml_dump_str(data)
+        should_write, code = check_landing(
+            dry_run=args.dry_run, confirm=args.confirm,
+            target=target, preview=preview,
+            asset_label=f"MIS 表 {args.table}（业务字段 {business_fields_count}）",
+        )
+        if not should_write:
+            return code
+        target.parent.mkdir(parents=True, exist_ok=True)
         yaml_dump(data, target)
         print_ok(f"已创建: {target}")
         print_info(f"  - 表名: {args.table}")
@@ -276,6 +305,13 @@ def cli():
             normalized_fields.append(normalized)
         data["fields"] = normalized_fields
         data.setdefault("relations", [])
+        preview = yaml_dump_str(data)
+        should_write, code = check_landing(
+            dry_run=args.dry_run, confirm=args.confirm,
+            target=target, preview=preview, asset_label="MIS 表（补齐默认属性）",
+        )
+        if not should_write:
+            return code
         yaml_dump(data, target)
         print_ok(f"已补齐字段默认属性: {target}")
         print_info(f"  - 字段数: {len(normalized_fields)}")
@@ -283,12 +319,8 @@ def cli():
 
     existing_fields = data.get("fields") or []
     new_fields = []
-    if args.fields_json:
-        try:
-            extras = parse_json_arg(args.fields_json, expected_type=list, label="--fields-json")
-        except ValueError as e:
-            print_err(str(e))
-            return 1
+    if fields_param is not None:
+        extras = fields_param
         for f in extras:
             new_fields.append(build_field(
                 name=f["name"],
@@ -330,10 +362,19 @@ def cli():
             continue
         existing_fields.append(f)
         existing_names.add(f["name"])
-        print_ok(f"已添加字段: {f['name']} ({f['type']}, {f['description']})")
 
     data["fields"] = existing_fields
+    preview = yaml_dump_str(data)
+    should_write, code = check_landing(
+        dry_run=args.dry_run, confirm=args.confirm,
+        target=target, preview=preview,
+        asset_label=f"MIS 表追加字段（{len(new_fields)} 个）",
+    )
+    if not should_write:
+        return code
     yaml_dump(data, target)
+    for f in new_fields:
+        print_ok(f"已添加字段: {f['name']} ({f['type']}, {f['description']})")
     print_info(f"已写回: {target}")
     return 0
 

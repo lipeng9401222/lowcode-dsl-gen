@@ -10,6 +10,8 @@
 | 资源 | [`../../设计器 Schema 规范定义/05-资源.md`](../../设计器%20Schema%20规范定义/05-资源.md) | endpoint、资源操作、资源引用 |
 | 动作与事件 | [`../../设计器 Schema 规范定义/06-动作与事件.md`](../../设计器%20Schema%20规范定义/06-动作与事件.md) | actions、events、动作步骤 |
 | 规则与表达式 | [`../../设计器 Schema 规范定义/07-规则与表达式.md`](../../设计器%20Schema%20规范定义/07-规则与表达式.md) | 校验、显隐、禁用、表达式边界 |
+| 组件文档 | [`组件文档/index.md`](组件文档/index.md) | 组件属性、事件、布局与控件能力原文 |
+| 组件与字段对照 | [`组件与字段对照.md`](组件与字段对照.md) | 组件文档名、JSON 节点类型、字段含义、选型矩阵、关键 props、生成器覆盖范围 |
 
 ## 1. 页面根对象
 
@@ -63,6 +65,23 @@
 - `children` 和 `slots` 都表达子节点，但强互斥组件应按具体组件扩展处理。
 - 基础 `ViewNode` 根属性不承载 `label`、`title`、`items`、`gap` 等控件专用字段；简单展示配置写入 `props`。
 - 表格 `columns` 是 table 组件的强结构字段，不写入普通节点的 `props.columns`。
+
+## 2.1 组件选型最小流程
+
+写 page JSON 时，skill 至少按下面顺序判断：
+
+1. 页面类型决定骨架：
+   - `list`：优先 `toolbar + table`
+   - `form/detail`：优先 `layout-manager + collapse + form-layout + form-item`
+2. 字段语义决定控件：
+   - 普通文本、长文本、数值、布尔、日期、字典、层级分类、人员组织、外部对象、附件图片分别走对应专用控件
+3. 组件能力决定 props：
+   - 例如 `select` 要确认 `codeItem/multiple/filterable`
+   - `date-picker` 要确认 `type/format`
+   - `organization-select` 要确认 `mode/range/interactive`
+   - `button-edit` 要确认 `dialogConfigGuid/url/pageName`
+
+如果第 2 步和第 3 步没有明确答案，不要直接落盘，先回到 `组件与字段对照.md` 补选型。
 
 ## 3. 视图模型
 
