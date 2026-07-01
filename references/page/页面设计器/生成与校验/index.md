@@ -7,7 +7,7 @@
 - `title`：页面名称。
 - `pagetag`：页面唯一标识。
 - `id`：页面 Schema 的稳定本地 id，默认由 `pagetag` 派生：下划线转短横线并追加 `-page`，例如 `projectinfo_list` -> `projectinfo-list-page`。
-- `pageId`：页面设计器运行时打开表单/详情页的真实 id，格式通常为 `page_<时间戳>`；列表页本身不需要顶层 `pageId`，列表页弹窗 URL 使用表单/详情页实际 JSON 中的 `pageId`。没有真实导出值时，不要手工预留，省略 `--page-id` 让 `add_page.py` 生成。
+- `pageId`：页面设计器运行时打开表单/详情页的真实 id，格式通常为 `page_<时间戳>`；列表页本身不需要顶层 `pageId`，列表页弹窗 URL 使用表单/详情页实际页面文件中的 `pageId`。没有真实导出值时，不要手工预留，省略 `--page-id` 让 `add_page.py` 生成。
 - `pageType`：`list`、`form`、`detail` 等。
 - `device`：默认 `desktop`，只有明确移动端/H5/小屏时使用 `mobile`。
 - `model`：关联的 `mis.tableName`、模型别名和字段。
@@ -28,6 +28,14 @@
 | H5、移动端、小屏 | 对应类型 + `mobile` | 画布尺寸、移动端专属交互 |
 | 工作流办理/审批页面 | `form` 或 `detail` | 申请/审批/浏览 pagetag、关联流程 |
 
+### 工作流表单判定
+
+- 用户只说“新增、编辑、详情表单”时，默认生成普通表单。
+- 用户明确说“申请、审批、办理、退回、提交流程”等流程办理语义时，生成工作流表单。
+- 用户只需要在页面展示流程状态时，可以用普通详情页加状态展示；只有页面要承载流程按钮、流程右侧区或审批历史时，才生成工作流表单。
+- 页面要被 workflow 节点打开时，必须确认页面 `pagetag` 与 workflow 的 `handleurl` / `mobilehandleurl` 引用一致。
+- `add_page.py` 不应自行猜测是否工作流表单；调度器或计划中应显式选择工作流表单场景，并提供 `pageId`、`pagetag`、关联 workflow 证据。
+
 ## 生成步骤
 
 1. 根据页面类型读取 `../场景示例/index.md` 对应示例。
@@ -35,7 +43,7 @@
 3. 根据字段和接口需要读取 `../基础结构/index.md` 中的模型、资源、动作、事件规范。
 4. 维护 `.lowcode-plans/<apptag>/page/<asset-id>-plan.md`，记录输入 IR、字段来源、确认记录、生成计划和校验结果。
 5. 用户明确批准后调用 `scripts/add_page.py`。
-6. 使用 `scripts/validate_json.py` 校验目标 JSON 文件。
+6. 使用 `scripts/validate_json.py` 校验目标页面文件。
 
 ## 计划文档
 
@@ -66,7 +74,7 @@ python3 scripts/add_page.py \
 ```
 
 ```bash
-python3 scripts/validate_json.py <app-root>/page/<pagetag>.json
+python3 scripts/validate_json.py <app-root>/page/<页面名>.page.yml
 ```
 
 如果只想先看页面效果，可以在 `add_page.py` 上加 `--mock-data` 生成兜底数据，或使用 `--initial-json` / `--initial-json-file` 传入精确预览数据，让模型携带默认初始值。
@@ -99,10 +107,10 @@ python3 scripts/validate_json.py <app-root>/page/<pagetag>.json
 
 | IR 字段 | 脚本/Schema 落点 | 说明 |
 |---------|------------------|------|
-| `title` | 页面标题 | 中文页面名 |
-| `pagetag` | 页面唯一标识，也是默认文件名 | workflow/module 引用的关键值；默认与 `mis.tableName` 对齐生成，如 `projectinfo_form` |
+| `title` | 页面标题，也是默认文件名 | 中文页面名 |
+| `pagetag` | 页面唯一标识 | workflow/module 引用的关键值；默认与 `mis.tableName` 对齐生成，如 `projectinfo_form` |
 | `id` | 顶层 `id` 和组件 `componentId` 后缀 | 使用稳定 schema id，例如 `projectinfo-list-page`，不要使用 `page_<时间戳>` |
-| `pageId` | 表单/详情页顶层 `pageId` | 列表新增/修改/查看弹窗 URL 使用目标 JSON 已生成的 `pageId`；没有真实导出值时由 `add_page.py` 生成，列表页不需要顶层 `pageId` |
+| `pageId` | 表单/详情页顶层 `pageId` | 列表新增/修改/查看弹窗 URL 使用目标页面文件已生成的 `pageId`；没有真实导出值时由 `add_page.py` 生成，列表页不需要顶层 `pageId` |
 | `device` | `viewport.device` | 默认 `desktop` |
 | `pageType` | 生成模板选择 | `list`、`form`、`detail` |
 | `endpoint` | 预留给资源/action 生成 | 仅真实接口存在时生成 |
@@ -135,14 +143,14 @@ python3 scripts/validate_json.py <app-root>/page/<pagetag>.json
 
 ## 落盘规则
 
-- 新建文件必须使用 JSON 后缀：`<pagetag>.json`。
+- 新建文件必须使用页面 YAML 后缀：`<页面名>.page.yml`，默认取中文 `title`。
 - 新结构固定落在 `<apptag>/page/`。
 - 表单页 `pageId` 必须能被列表页按钮 URL 引用；列表页不需要顶层 `pageId`，只保留顶层 `id`。
-- 严禁为了提前生成列表 URL 在计划或 IR 中手工预留 `page_<时间戳>`；必须先生成配套表单页，再读取 JSON 顶层 `pageId` 回填列表。标准新增、编辑、详情默认复用这个 `pageId`，由设计器当前约定的运行模式区分编辑和只读详情。
+- 严禁为了提前生成列表 URL 在计划或 IR 中手工预留 `page_<时间戳>`；必须先生成配套表单页，再读取页面文件顶层 `pageId` 回填列表。标准新增、编辑、详情默认复用这个 `pageId`，由设计器当前约定的运行模式区分编辑和只读详情。
 - 顶层 `id` 和组件 `componentId` 后缀保持稳定 schema id 逻辑，不使用 `page_<时间戳>`。
 - 不生成 `<apptag>/page/*.epage`。
 - 不生成 `<apptag>/metadata/...` 老结构。
-- 如果页面对应某个 `mis` 表，`pagetag`、文件名、`models[*].sqlTableName`、模型 `alias` 默认都应尽量与 `mis.tableName` 保持一致。
+- 如果页面对应某个 `mis` 表，`pagetag`、`models[*].sqlTableName`、模型 `alias` 默认都应尽量与 `mis.tableName` 保持一致；文件名默认与中文 `title` 保持一致。
 
 ## 校验失败处理
 

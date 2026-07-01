@@ -1,6 +1,6 @@
 ---
 name: lowcode-gen-page
-description: Epoint 低代码页面设计器原子生成器。根据 lowcode-dsl-gen IR 的 `pagedesigne` 资产生成或修改 `page/*.json`，处理页面标题、`pagetag`、`device`、`pageType`、模型、字段、查询条件、组件映射、页面引用和 JSON 校验。用于列表页、表单页、详情页、工作流办理页的页面设计器生成；默认使用桌面端，只有用户明确要求移动端、H5 或小屏时才使用 `mobile`。
+description: Epoint 低代码页面设计器原子生成器。根据 lowcode-dsl-gen IR 的 `pagedesigne` 资产生成或修改 `page/*.page.yml`，处理页面标题、`pagetag`、`device`、`pageType`、模型、字段、查询条件、组件映射、页面引用和页面 schema 校验。用于列表页、表单页、详情页、工作流办理页的页面设计器生成；默认使用桌面端，只有用户明确要求移动端、H5 或小屏时才使用 `mobile`。
 ---
 
 # lowcode-gen-page
@@ -15,6 +15,14 @@ spec:
   pagetag: "purchaseproject_list"
   device: "desktop"
   pageType: "list"
+  pageRole: "normal-list"
+  workflowRef: ""
+  workflow:
+    enabled: false
+    processguid: ""
+    formPagetag: ""
+    approvePagetag: ""
+    detailPagetag: ""
   endpoint: "/api/purchaseproject"
   fields: []
   query: []
@@ -42,8 +50,10 @@ spec:
 3. `../../references/page/页面设计器/基础结构/index.md`
 4. `../../references/page/页面设计器/基础结构/组件与字段对照.md`
 5. 按页面类型选择：
-   - 列表页：先读真实 JSON 样例 `../../references/page/设计器 Schema 规范定义/project_list.json`、`../../references/page/设计器 Schema 规范定义/task_list.json`，再读说明性文档 `../../references/page/页面设计器/场景示例/列表示例.md`
-   - 表单/详情/工作流表单页：先读真实 JSON 样例 `../../references/page/设计器 Schema 规范定义/project_form.json`、`../../references/page/设计器 Schema 规范定义/task_form.json`，再读说明性文档 `../../references/page/页面设计器/场景示例/表单示例.md`
+   - 普通列表页（`pageRole=normal-list` 或未提供且明确非工作流）：先读内嵌真实 JSON 样例的 `../../references/page/设计器 Schema 规范定义/列表示例.md`，再读说明性文档 `../../references/page/页面设计器/场景示例/列表示例.md`
+   - 普通表单/详情页（`pageRole=normal-form|normal-detail` 或未提供且明确非工作流）：先读内嵌真实 JSON 样例的 `../../references/page/设计器 Schema 规范定义/表单示例.md`，再读说明性文档 `../../references/page/页面设计器/场景示例/表单示例.md`
+   - 工作流列表页（`pageRole=workflow-list`）：先读 `../../references/page/设计器 Schema 规范定义/工作流列表结构.md`，再读 `../../references/page/页面设计器/场景示例/工作流列表示例.md`
+   - 工作流表单/办理/详情页（`pageRole=workflow-apply|workflow-approve|workflow-detail`）：先读 `../../references/page/设计器 Schema 规范定义/工作流表单示例.md`，再读 `../../references/page/页面设计器/场景示例/工作流表单示例.md`
 6. 只有在结构或校验被卡住时，再读：
    - `../../references/page/设计器 Schema 规范定义/index.md`
    - `../../references/page/设计器 Schema 规范定义/08-规范化与校验.md`
@@ -95,9 +105,35 @@ spec:
 | 查询条件 | 列表页 ✅ | 搜索功能 |
 | 布局分组 | 表单页建议 ✅ | 表单结构 |
 
+## 工作流页面分流
+
+page 技能不负责判断是否需要创建 workflow 资产；这个判断必须由 dispatcher、IR 或计划阶段完成。page 技能只根据 `pagedesigne.spec` 中的显式字段选择普通页面还是工作流页面结构。
+
+判断顺序：
+
+1. 优先读取 `spec.pageRole`。
+2. `pageRole` 以 `workflow-` 开头，或存在非空 `spec.workflowRef`，或 `spec.workflow.enabled=true` 时，按工作流页面生成。
+3. `workflow-list` 使用工作流列表结构；`workflow-apply`、`workflow-approve`、`workflow-detail` 使用工作流表单结构。
+4. `pageRole=normal-list|normal-form|normal-detail` 时，禁止生成 `workflow-button`、`workflow-right`、`workflow-history`、流程锚点等工作流专用结构。
+5. 缺少 `pageRole` 但已有非空 `workflowRef` / `workflow.enabled=true` 时，可按工作流页面处理，并在页面子计划中记录该依据。
+6. 只有自然语言出现“申请、审批、办理、退回、提交流程”等语义，但 `spec` 没有 `pageRole`、非空 `workflowRef` 或 `workflow.enabled=true` 时，不得静默猜测；应回写 `open_questions`，要求 dispatcher 补齐 `pageRole` 和 `workflowRef`。
+
+推荐取值：
+
+```yaml
+pageRole: "normal-list | normal-form | normal-detail | workflow-list | workflow-apply | workflow-approve | workflow-detail"
+workflowRef: "<workflow asset id>"
+workflow:
+  enabled: true
+  processguid: "<known or empty>"
+  formPagetag: "<apply/form pagetag>"
+  approvePagetag: "<approve pagetag>"
+  detailPagetag: "<detail pagetag>"
+```
+
 ## 执行步骤
 
-1. 核对输入：`title`、`pagetag`、`device`、`pageType`、`endpoint`、`fields`、`query`、`layout`、跨资产引用。
+1. 核对输入：`title`、`pagetag`、`device`、`pageType`、`pageRole`、`workflowRef`、`endpoint`、`fields`、`query`、`layout`、跨资产引用。
 2. 默认保持 `device=desktop`；只有用户明确要求移动端、H5 或小屏时才切到 `mobile`。
 3. 先从设计稿、截图、原型、PRD 页面说明或运行端 mock 抽取页面 layout spec，再决定是否调用 `add_page.py`。只要存在可见 UI 依据，就必须先还原可见结构和交互意图，不得直接用 MIS 字段或默认模板代替。
 4. 写入或更新 `.lowcode-plans/<apptag>/page/<asset-id>-plan.md`，至少记录：
@@ -109,7 +145,9 @@ spec:
    - 校验命令与结果
 5. 先定页面骨架，再定字段控件：
    - `list`：优先对齐真实 JSON 的 `list-container -> toolbar + table`
-   - `form/detail/workflow-form`：优先对齐真实 JSON 的 `layout-manager -> slots.main -> collapse -> collapse-item -> form-layout -> form-item -> control`
+   - `normal-form/normal-detail`：优先对齐真实 JSON 的 `layout-manager -> slots.main -> collapse -> collapse-item -> form-layout -> form-item -> control`
+   - `workflow-list`：优先对齐工作流列表结构示例中的列表容器、流程状态/操作列、流程入口或待办入口
+   - `workflow-apply/workflow-approve/workflow-detail`：优先对齐工作流表单示例中的表单区、流程按钮、流程右侧区、流程历史、锚点/滚动区和附件区
 6. 组件选型以 `组件与字段对照.md` 和组件文档为准：
    - 先看字段语义，不只看字段类型
    - 先判断设计稿元素属于哪个组件族，再生成 JSON 节点
@@ -124,9 +162,9 @@ spec:
 
 - 页面生成优先级固定为：设计稿/截图/原型/运行端 mock > PRD 页面说明 > 现有真实 JSON 样例 > MIS 字段 > 默认模板。只要存在可见 UI 依据，就禁止仅按数据模型字段生成页面。
 - 有设计稿或截图时必须先输出 layout spec；layout spec 未覆盖可见结构、关键交互、组件选择、数据绑定和打开方式时，不得进入落盘。
-- 页面 JSON 默认落盘为 `page/<pagetag>.json`；`pagetag`、文件名、模型 `alias`、`models[*].sqlTableName` 默认优先与关联 `mis.tableName` 对齐。
+- 页面默认落盘为 `page/<title>.page.yml`，也就是中文页面名文件；`pagetag`、模型 `alias`、`models[*].sqlTableName` 默认优先与关联 `mis.tableName` 对齐。
 - 顶层 `id` 是稳定 schema 标识；列表页通常不需要顶层 `pageId`。
-- 表单/详情运行时目标必须使用真实 `pageId`。没有设计器导出值时，不要手工预留或编造，省略 `--page-id` 让 `add_page.py` 生成；列表页按钮再读取配套表单 JSON 的最终 `pageId`。
+- 表单/详情运行时目标必须使用真实 `pageId`。没有设计器导出值时，不要手工预留或编造，省略 `--page-id` 让 `add_page.py` 生成；列表页按钮再读取配套表单页面文件的最终 `pageId`。
 - 标准新增、编辑、详情默认复用同一个表单页和同一个 `pageId`，由设计器当前约定的运行模式区分编辑和只读详情；只有需求明确要求独立详情布局时，才单独规划详情页。
 - 页面字段必须分层：MIS 字段是数据模型字段，不等同于页面展示字段；表单/详情页优先使用 `layout.sections[].fields`，未提供时才回退到 `fields`。
 - 页面中的按钮、查询、选择、表格、表单分组、弹窗、树、上传、分页、状态展示、链接和行内操作都以设计稿/PRD 为准；默认模板只能用于需求未说明的部分。

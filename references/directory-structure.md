@@ -66,8 +66,8 @@
 ├── workflow/                        ← 工作流目录
 │   └── 采购立项流程模板.workflow.yml
 └── page/                            ← 页面设计器目录
-    ├── 采购立项列表.json
-    └── 采购立项表单.json
+    ├── 采购立项列表.page.yml
+    └── 采购立项表单.page.yml
 ```
 
 ## 路径计算规则（重要！）
@@ -117,7 +117,7 @@ app_root = "/".join(parts)
 | `module` | `<中文/英文名>.module.yml` | `采购立项模块.module.yml` |
 | `event` | `<功能名/接口名>.event.yml` | `获取列表数据.event.yml`、`getDataGridModel.event.yml` |
 | `workflow` | `<流程名>.workflow.yml` | `采购立项流程.workflow.yml` |
-| `pagedesigne` | `<页面名>.json` | `采购立项列表.json` |
+| `pagedesigne` | `<页面名>.page.yml` | `采购立项列表.page.yml` |
 
 > **关于双扩展名**：新建资产必须使用 `名字.类型.yml`。历史单扩展 `.yml` 只作为兼容读取，不再作为新建默认风格。
 
@@ -137,8 +137,8 @@ epoint-ipd-action/src/main/resources/META-INF/resources/
             ├── event/
             │   └── purchaseproject_getDataGridModel.event.yml
             └── page/                ← 页面设计器 JSON 目录
-                ├── requirement_list.json
-                └── requirement_form.json
+                ├── requirement_list.page.yml
+                └── requirement_form.page.yml
 ```
 
 > **注意**：`page/` 目录只放页面设计器 JSON；不要再生成 `.epage` 或 `.pagedesigne.yml`。
@@ -292,7 +292,7 @@ epoint-ipd-action/src/main/resources/META-INF/resources/
 4. 从第一轮起持续维护 `.lowcode-plans/<apptag>-plan.md`；每个阶段确认后都更新对话确认记录、阶段确认结果和资产拆分表；全部阶段确认后再整理完整"生成计划"章节。
 5. 用户明确批准计划后才开始落盘，且**必须分阶段逐资产落盘，禁止一次性批量全落盘**：按 `codeitem → mis → module → pagedesigne → workflow` 顺序（`event`/`api` 仅当用户明确要求时才纳入），每个资产先 `--dry-run` → 展示该资产 dry-run 结果与关键字段 → 用户确认（“继续/调整”）→ 落盘该资产 → `validate_yml.py`；用户每确认一个才落一个，可随时叫停或纠偏。`whole-app` 落盘前还须通过 `python3 scripts/validate_plan.py .lowcode-plans/<apptag>-plan.md`。全部资产落盘后，**交付前最终校验**统一执行 `python3 scripts/validate_yml.py --strict --check-refs <app-root>`（spec v2 严格模式：旧驼峰键 / `tableid` 残留 / `metadata/` 老结构 一律升级为 error）。
 
-缺少页面信息时，把用户说的 `pagedesign` 统一映射到页面设计器资产 `pagedesigne`，落盘到 `page/*.json`，并优先调用 `scripts/add_page.py`。
+缺少页面信息时，把用户说的 `pagedesign` 统一映射到页面设计器资产 `pagedesigne`，落盘到 `page/*.page.yml`，并优先调用 `scripts/add_page.py`。
 
 #### 模式 D 中间产物（应用蓝图最小字段）
 

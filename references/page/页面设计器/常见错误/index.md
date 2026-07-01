@@ -2,7 +2,7 @@
 
 | 错误 | 原因 | 修复 |
 |------|------|------|
-| 输出到 `pagedesigne/*.json` 或 `page/*.epage` | 混用了旧页面目录或旧页面文件格式 | 改为 `<apptag>/page/*.json` |
+| 输出到 `pagedesigne/*`、`page/*` 的非 `.page.yml` 后缀 | 混用了旧页面目录或旧页面文件格式 | 改为 `<apptag>/page/*.page.yml` |
 | 仍引用外部或旧技能路径 | 从历史文档复制后未更新路径 | 统一改为 `docs/skills/lowcode-dsl-gen/references/page/...` |
 | 页面节点内联接口调用逻辑 | 破坏顶层资源/动作注册区 | 把接口放入 `resources`，调用放入 `actions` |
 | `events` 直接写复杂对象 | 事件规范要求引用 action | 先定义 `actions.<id>`，再在 `events` 写 action id |

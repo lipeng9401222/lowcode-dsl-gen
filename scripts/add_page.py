@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""add_page.py - create page designer JSON files.
+"""add_page.py - create page designer page YAML files.
 
 This script intentionally targets the page-designer persisted JSON shape:
 componentType/componentId/componentName/props/slots.
@@ -201,7 +201,7 @@ def stable_model_guid(pagetag: str, alias: str) -> str:
 
 
 def safe_filename(name: str) -> str:
-    return re.sub(r'[<>:"/\\|?*]', "_", name).strip().lower()
+    return re.sub(r'[<>:"/\\|?*]', "_", name).strip()
 
 
 def read_text_arg(value: str, file_path: str | None = None) -> str:
@@ -1780,7 +1780,7 @@ def build_form(schema: dict, args, fields: list[dict], *, readonly: bool = False
 
 
 def cli() -> int:
-    parser = argparse.ArgumentParser(description="Create page designer JSON")
+    parser = argparse.ArgumentParser(description="Create page designer page schema file")
     parser.add_argument("--app-root", required=True, help="application root path")
     parser.add_argument("--pagetag", required=True, help="unique page tag, e.g. purchaseproject_list")
     parser.add_argument("--type", choices=["list", "form", "detail"], default="list", help="page type")
@@ -1853,7 +1853,7 @@ def cli() -> int:
 
     page_dir = app_root / "page"
     page_dir.mkdir(parents=True, exist_ok=True)
-    target = page_dir / f"{safe_filename(args.filename or args.pagetag)}.json"
+    target = page_dir / f"{safe_filename(args.filename or args.title)}.page.yml"
     if target.exists() and not args.force:
         print(f"ERROR: file already exists: {target}", file=sys.stderr)
         return 1
@@ -1880,7 +1880,7 @@ def cli() -> int:
 
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
-    print(f"OK: page JSON created: {target}")
+    print(f"OK: page file created: {target}")
 
     if not args.no_validate:
         validator = Path(__file__).with_name("validate_json.py")

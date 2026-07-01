@@ -118,7 +118,7 @@ open_questions: []
 |----------|----------|----------|----------|------|
 | codeitem | 审核状态 | codeitem/审核状态.codeitem.yml | add_codeitem.py | mis.audit_status |
 | mis | purchaseproject | mis/purchaseproject.mis.yml | add_mis_field.py --create | codeitem.审核状态 |
-| pagedesigne | 采购立项列表 | page/采购立项列表.json | add_page.py --type list | event.getDataGridModel |
+| pagedesigne | 采购立项列表 | page/采购立项列表.page.yml | add_page.py --type list | event.getDataGridModel |
 ```
 
 ## 生成计划必须包含

@@ -95,7 +95,7 @@ validation:
 | `lowcode-gen-codeitem` | 代码项 | `assets[type=codeitem].spec` | `codeitem/*.codeitem.yml` |
 | `lowcode-gen-mis` | 数据模型 | `assets[type=mis].spec` | `mis/*.mis.yml` |
 | `lowcode-gen-module` | 模块菜单 | `assets[type=module].spec` | `module/*.module.yml` |
-| `lowcode-gen-page` | 页面设计器 | `assets[type=pagedesigne].spec` | `page/*.json` |
+| `lowcode-gen-page` | 页面设计器 | `assets[type=pagedesigne].spec` | `page/*.page.yml` |
 | `lowcode-gen-workflow` | 审批流 | `assets[type=workflow].spec` | `workflow/*.workflow.yml` |
 | `lowcode-gen-event` | 动作流 | `assets[type=event].spec` | `event/*.event.yml` |
 

@@ -1,6 +1,6 @@
 # 页面 Schema 规范定义
 
-本目录是 `lowcode-dsl-gen` 中页面设计器 `pagedesigne` 资产的 Core Schema 规范来源。生成页面资产时，产物落到应用根目录的 `page/*.json`，文件内容承载页面设计器 Core Schema。
+本目录是 `lowcode-dsl-gen` 中页面设计器 `pagedesigne` 资产的 Core Schema 规范来源。生成页面资产时，产物落到应用根目录的 `page/*.page.yml`，文件内容承载页面设计器 Core Schema。
 
 > 当前目录只描述页面 Schema 本身；应用目录、文件命名、计划文档、脚本调用和跨资产校验规则，统一以 `../../directory-structure.md` 和 `../../conventions.md` 为准。
 
@@ -16,7 +16,7 @@
 输出位置：
 
 ```text
-<apptag>/page/<pagetag>.json
+<apptag>/page/<页面名>.page.yml
 ```
 
 ## 文档导航
@@ -31,28 +31,28 @@
 | [`06-动作与事件.md`](06-动作与事件.md) | `actions`、`events`、动作步骤和事件引用 | 页面加载、按钮点击、保存、刷新等交互时 |
 | [`07-规则与表达式.md`](07-规则与表达式.md) | 校验规则、显示规则、表达式边界 | 处理必填、显隐、禁用和业务规则时 |
 | [`08-规范化与校验.md`](08-规范化与校验.md) | normalize/validate 要求和常见静态错误 | 落盘前和校验报错修复时 |
-| [`project_list.json`](project_list.json) | 真实设计器导出的项目列表页 Core Schema | 生成列表页骨架、工具栏、表格和 collection 模型绑定时 |
-| [`task_list.json`](task_list.json) | 真实设计器导出的任务列表页 Core Schema | 生成列表页骨架、工具栏、表格和 collection 模型绑定时 |
-| [`project_form.json`](project_form.json) | 真实设计器导出的项目表单页 Core Schema | 生成表单/详情页布局、分组和 record 模型绑定时 |
-| [`task_form.json`](task_form.json) | 真实设计器导出的任务表单页 Core Schema | 生成表单/详情页布局、分组和 record 模型绑定时 |
-| [`列表示例.md`](列表示例.md) | 可参考的列表页 Core Schema | 生成列表页、查询区、表格、工具栏时 |
-| [`表单示例.md`](表单示例.md) | 可参考的表单页 Core Schema | 生成新增、编辑、详情、审批表单时 |
+| [`列表示例.md`](列表示例.md) | 内嵌真实设计器导出的列表页 Core Schema 示例 | 生成列表页、查询区、表格、工具栏时 |
+| [`表单示例.md`](表单示例.md) | 内嵌真实设计器导出的表单页 Core Schema 示例 | 生成新增、编辑、详情、审批表单时 |
+| [`工作流列表结构.md`](工作流列表结构.md) | 工作流列表入口的按钮、URL 和流程参数结构 | 生成从列表发起或查看流程的页面时 |
+| [`工作流表单示例.md`](工作流表单示例.md) | 内嵌真实设计器导出的工作流表单 Core Schema 示例 | 生成申请、审批、办理、浏览表单时 |
 
 ## 生成优先级
 
 生成页面时按下面顺序读取资料：
 
 1. 先读本 `index.md`，确认页面资产边界和产物位置。
-2. 根据页面类型优先读取真实 JSON 样例：列表页读 `project_list.json`、`task_list.json`；表单/详情页读 `project_form.json`、`task_form.json`。
-3. 再读取说明性示例文档：列表页读 `列表示例.md`，表单/详情页读 `表单示例.md`。
+2. 根据页面类型优先读取内嵌真实 JSON 的示例文档：列表页读 `列表示例.md`；表单/详情页读 `表单示例.md`。
+3. 示例文档中的“示例一 / 示例二”均为完整 Core Schema，可直接作为结构基线。
 4. 按需读取结构规范：页面根对象读 `02-页面 Schema.md`，组件层级读 `03-视图树.md`，字段和模型读 `04-视图模型.md`。
 5. 需要接口、动作流或页面事件时，再读 `05-资源.md` 和 `06-动作与事件.md`。
 6. 落盘前必须读 `08-规范化与校验.md`，并运行校验脚本。
 
 真实 JSON 样例的定位：
 
-- `project_list.json`、`task_list.json`：列表页结构基线，重点参考 `list-container -> toolbar + table`、`collection` 模型、表格列和工具栏按钮的组织方式。
-- `project_form.json`、`task_form.json`：表单页结构基线，重点参考 `layout-manager -> slots.main -> collapse -> collapse-item -> form-layout -> form-item -> control`、`record` 模型和字段绑定方式。
+- `列表示例.md`：内嵌项目列表、任务列表等列表页完整 JSON，重点参考 `list-container -> toolbar + table`、`collection` 模型、表格列和工具栏按钮的组织方式。
+- `表单示例.md`：内嵌项目表单、任务表单等表单页完整 JSON，重点参考 `layout-manager -> slots.main -> collapse -> collapse-item -> form-layout -> form-item -> control`、`record` 模型和字段绑定方式。
+- `工作流列表结构.md`：基于真实工作流列表导出的结构差异，重点参考 `process-button`、`processGuid` 和行操作 URL。
+- `工作流表单示例.md`：内嵌工作流表单完整 JSON，重点参考 `workflow-button`、`workflow-right`、`workflow-history`、`scrollbar`、`anchor` 和附件上传结构。
 - 生成新页面时只复用结构规律，不复制样例里的业务字段、标题、模型名、页面 id 或节点 id；这些值必须来自当前需求、MIS 或已生成资产。
 
 ## 页面顶层结构
@@ -108,7 +108,7 @@
 ## 跨资产关系
 
 - `mis`：页面模型字段优先来自同应用 `mis` 的表字段；`models[*].sqlTableName` 应能回到对应 `mis.tableName`。
-- 页面英文标识默认也与 `mis.tableName` 对齐：推荐 `pagetag=<mis.tableName>_<pageType>`，文件名默认 `<pagetag>.json`，模型 `alias` 默认与 `mis.tableName` 一致。
+- 页面英文标识默认也与 `mis.tableName` 对齐：推荐 `pagetag=<mis.tableName>_<pageType>`，模型 `alias` 默认与 `mis.tableName` 一致；文件名默认使用中文 `title`，即 `<页面名>.page.yml`。
 - `event`：复杂状态变更、外部推送、工作流回调等动作可通过资源或 action 引用动作流，但标准 CRUD 不主动生成 event。
 - `workflow`：工作流节点通过页面 `pagetag` 打开申请、审批、浏览等页面；页面生成完成后，workflow 才能稳定引用它。
 - `module`：菜单 URL 可指向页面运行时地址，例如 `home/vuepagedesigner/renderer/list?pagetag=<pagetag>`。
@@ -131,5 +131,5 @@
 - 字段绑定是否引用真实模型和字段。
 - `events` 引用的 action 是否存在。
 - `actions[*].steps[*].use` 引用的资源和操作是否存在。
-- 输出路径是否为 `<app-root>/page/*.json`。
+- 输出路径是否为 `<app-root>/page/*.page.yml`。
 - 生成后执行 `scripts/validate_json.py <target-file>`。

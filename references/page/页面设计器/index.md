@@ -1,11 +1,11 @@
-# 页面设计器：page json
+# 页面设计器：page schema
 
 ## 1. 资产定位与边界
 
 `pagedesigne` 资产描述页面设计器页面，文件落在应用根目录：
 
 ```text
-<apptag>/page/<pagetag>.json
+<apptag>/page/<页面名>.page.yml
 ```
 
 页面内容以 Core Schema 表达，覆盖页面标题、`pagetag`、设备类型、页面类型、视图树、视图模型、资源、动作、事件、规则和字段绑定。
@@ -31,7 +31,7 @@
 
 ### 设计红线
 
-- 新建页面资产只能写入 `<apptag>/page/*.json`。
+- 新建页面资产只能写入 `<apptag>/page/*.page.yml`。
 - 不生成 `<apptag>/page/*.epage`，不生成 `<apptag>/metadata/...`。
 - 页面 Schema 必须保持 `schemaVersion: core-1.0`、`kind: page`。
 - 视图节点事件只能引用顶层 `actions`，不能把动作步骤内联到节点。
@@ -82,11 +82,11 @@ python3 scripts/validate_json.py <target-file>
 
 ## 命名规则
 
-- 页面 `title` 可以使用中文名称，用于页面展示。
-- 页面 `pagetag`、JSON 文件名、模型别名默认使用英文标识。
+- 页面 `title` 使用中文页面名，用于页面展示，并作为默认文件名。
+- 页面 `pagetag`、模型别名默认使用英文标识。
 - 如果页面来自某个 `mis` 表，默认按 `mis.tableName` 对齐：
   - `pagetag` 建议使用 `<mis.tableName>_<pageType>`
-  - 文件名默认使用 `<pagetag>.json`
+  - 文件名默认使用 `<title>.page.yml`
   - `models[*].sqlTableName` 写 `mis.tableName`
   - 模型 `alias` 默认与 `mis.tableName` 一致
 - 只有用户明确指定其他命名方式时，才偏离上述默认规则。
@@ -146,7 +146,7 @@ python3 scripts/validate_json.py <target-file>
 
 ## 6. 资料是否够用
 
-当前 `page` 参考目录已有 Core Schema 主体规范和列表/表单示例，足够支撑第一阶段的页面设计器 JSON 生成：
+当前 `page` 参考目录已有 Core Schema 主体规范和列表/表单示例，足够支撑第一阶段的页面设计器 schema 生成：
 
 - 列表页：已有查询区、表格、工具栏、分页示例。
 - 表单页：已有 record 模型、表单控件和按钮示例。

@@ -4,7 +4,7 @@
 # 红线：开始节点不能填表单；申请节点必须独立；开始/结束节点的 handleurl 为空(null)，浏览节点 handleurl 走 detail
 #
 # handleurl 占位说明：
-# - {{PAGE_TAG_FORM}}    申请/审批节点（activitytype=30）使用的"表单页"pagetag，从 <apptag>/page/*.json 顶层 pagetag 字段取
+# - {{PAGE_TAG_FORM}}    申请/审批节点（activitytype=30）使用的"表单页"pagetag，从 <apptag>/page/*.page.yml 顶层 pagetag 字段取
 # - {{PAGE_TAG_DETAIL}}  浏览节点（activitytype=100）使用的"详情页"pagetag；如果只有表单页则复用 {{PAGE_TAG_FORM}}
 # - 自定义流程的"流程设计"按钮 operationpageurl 不受此规则影响，仍走原平台地址
 

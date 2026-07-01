@@ -138,6 +138,39 @@ task:
 6. 原子 skill 先 `--dry-run` 预览并展示给用户，用户对该资产确认后再 `--confirm` 落盘；不得用一句总批准代替逐资产确认，不得写批处理脚本绕过。
 7. 单资产校验通过后更新 asset 状态；整应用全部资产落盘后最后运行 `validate_yml.py --strict --check-refs <app-root>`。
 
+### Workflow Page Role Dispatch
+
+dispatcher 负责识别“是否存在工作流资产”和“哪些页面属于工作流场景”；`lowcode-gen-page` 只消费这个判断结果，不重新猜测是否要生成 workflow。
+
+当需求被识别为 `workflow` 场景，或资产队列中包含 `workflow` asset 时，相关 `pagedesigne` asset 必须在 `spec` 中显式写入：
+
+```yaml
+spec:
+  pageRole: "workflow-list | workflow-apply | workflow-approve | workflow-detail"
+  workflowRef: "<workflow asset id>"
+  workflow:
+    enabled: true
+    processguid: "<known or empty>"
+    formPagetag: "<apply/form pagetag>"
+    approvePagetag: "<approve pagetag>"
+    detailPagetag: "<detail pagetag>"
+```
+
+普通页面使用：
+
+```yaml
+spec:
+  pageRole: "normal-list | normal-form | normal-detail"
+```
+
+分流要求：
+
+- `pageRole` 是 page 原子技能的工作流分流依据，必须来自 dispatcher 的任务模式、workflow asset、用户确认或仓库证据。
+- `workflow-list` 用于流程发起/待办/已办/流程管理类列表页。
+- `workflow-apply` 用于发起申请表单，`workflow-approve` 用于办理/审批表单，`workflow-detail` 用于流程只读详情。
+- 工作流相关页面必须通过 `workflowRef` 关联同一 workflow asset；workflow asset 的 `spec.confirmations` 仍负责确认流程目标、节点链路、处理人、表单/详情页 `pagetag` 等事实。
+- 只有自然语言出现“审批/办理/退回/提交”等字样，但还没有明确 workflow asset 或 pageRole 时，不得让 page 技能静默猜测；应在计划中补 `open_questions` 或由 dispatcher 先完成 workflow/pageRole 分流。
+
 ## IR 规则 IR Rules
 
 IR 只描述“要什么”，不描述 YAML 内部骨架。IR 是执行前机器合同，不是默认第一轮规划产物；只记录生成脚本需要的字段、来源证据、依赖和 open questions，不重复长篇计划说明。

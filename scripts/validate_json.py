@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""validate_json.py - validate page designer JSON files."""
+"""validate_json.py - validate page designer schema files."""
 from __future__ import annotations
 
 import argparse
@@ -189,20 +189,20 @@ def collect_targets(target: Path) -> list[Path]:
     if target.is_file():
         return [target]
     if target.is_dir():
-        return sorted(target.rglob("*.json"))
+        return sorted(target.rglob("*.page.yml"))
     return []
 
 
 def cli() -> int:
-    parser = argparse.ArgumentParser(description="Validate page designer JSON")
-    parser.add_argument("target", help="JSON file or directory")
+    parser = argparse.ArgumentParser(description="Validate page designer schema files")
+    parser.add_argument("target", help=".page.yml file or directory")
     args = parser.parse_args()
 
     target = Path(args.target)
     result = Result()
     targets = collect_targets(target)
     if not targets:
-        result.err(str(target), "no JSON files found")
+        result.err(str(target), "no page schema files found")
 
     for item in targets:
         validate_page(item, result)
@@ -214,7 +214,7 @@ def cli() -> int:
     if result.errors:
         print(f"FAILED: {len(result.errors)} error(s), {len(result.warnings)} warning(s)", file=sys.stderr)
         return 1
-    print(f"OK: {len(targets)} JSON file(s) passed")
+    print(f"OK: {len(targets)} page schema file(s) passed")
     return 0
 
 

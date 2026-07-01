@@ -10,7 +10,7 @@
 2. **GUID/UUID 字段**：用 `python -c "import uuid; print(uuid.uuid4())"` 或脚本生成，**LLM 不要凭空编**。详见下文「GUID/UUID 字段」。
 3. **时间戳字段**：格式 `YYYY-MM-DD HH:MM:SS`，从当前日期取；动作流 `app` 节点的 `created_at` 是 Unix 秒级整数。详见下文「时间戳字段」。
 4. **枚举值**：见各 `references/<asset>/<中文目录>/index.md` 文档表格，**不能新造**；常见枚举（`isUse`、`mustfill`、`type` 等）在下文有总表。
-5. **文件命名**：新建 yml 资产统一使用 `名字.类型.yml`；mis 表名无下划线；页面设计器资产落盘为 `page/<页面名>.json`。详见 `references/directory-structure.md` 的「文件命名规则」节。
+5. **文件命名**：新建 yml 资产统一使用 `名字.类型.yml`；mis 表名无下划线；页面设计器资产落盘为 `page/<页面名>.page.yml`。详见 `references/directory-structure.md` 的「文件命名规则」节。
 
 > 不确定时**先查本文档对应小节，再查对应 `references/<asset>/<中文目录>/index.md`，最后才问用户**。绝不凭直觉造字段。
 
@@ -84,7 +84,7 @@
 | `*.module.yml` | `type: module` | |
 | `*.event.yml` | `type: event` | 文档原话 `type: code(组件标识)` 是泛指占位写法，实际取值视组件类型 |
 | `*.workflow.yml` | `type: workflow` | |
-| `page/*.json` | `"kind": "page"` + `"schemaVersion": "core-1.0"` | 页面设计器 Core Schema JSON，字段叫 `kind` 不是 `type` |
+| `page/*.page.yml` | `"kind": "page"` + `"schemaVersion": "core-1.0"` | 页面设计器 Core Schema，字段叫 `kind` 不是 `type` |
 | `*.api.yml` | `type: api` | 较少手写，多由 Java 注解扫描生成 |
 
 > **历史包袱说明**：文档 `01-vue方案.md` 给的示例 `type: code(组件标识)` 是泛指占位写法（“code” = “标识”）。具体到实际值，codeitem 类 yml 的 `type` 字段取值就是 `codeitem`；其它各类用对应实例标识（mis/module/workflow/event）。本工程下早期存在的 `审核状态.codeitem.yml`、`会议类型.codeitem.yml` 等反面样本写为 `type: code`，属于历史遗留，应逐步让它们统一到 `type: codeitem`。

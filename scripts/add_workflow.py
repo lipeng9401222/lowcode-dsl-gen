@@ -95,7 +95,7 @@ def _resolve_pagetags(app_root: Path, page_tag_form: str, page_tag_detail: str):
     page_dir = app_root / "page"
     if not page_dir.is_dir():
         return "", ""
-    for path in list(page_dir.glob("*.json")):
+    for path in sorted(page_dir.glob("*.page.yml")):
         try:
             text = path.read_text(encoding="utf-8")
         except OSError:

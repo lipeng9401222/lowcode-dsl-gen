@@ -1,15 +1,15 @@
 # 检查清单
 
-生成或修改页面设计器 JSON 后逐项检查：
+生成或修改页面设计器页面文件后逐项检查：
 
 ## 1. 文件与目录
 
-1. 文件路径是 `<apptag>/page/<pagetag>.json`。
-2. 文件名使用 `.json` 后缀。
+1. 文件路径是 `<apptag>/page/<页面名>.page.yml`，默认使用中文 `title` 命名。
+2. 文件名使用 `.page.yml` 后缀。
 3. 不存在 `<apptag>/metadata/...` 新增路径。
 4. 不新增 `<apptag>/page/*.epage`。
 5. 页面 `pagetag` 在应用内唯一。
-6. 如果页面对应某个 `mis` 表，文件名、`pagetag`、`models[*].sqlTableName`、模型 `alias` 已与 `mis.tableName` 对齐，除非用户明确要求其他命名。
+6. 如果页面对应某个 `mis` 表，`pagetag`、`models[*].sqlTableName`、模型 `alias` 已与 `mis.tableName` 对齐；文件名默认与中文 `title` 对齐。
 
 ## 2. 页面根对象
 
@@ -61,7 +61,7 @@
 4. 默认列表页查询项不会直接平铺在顶部；没有明确要求时，应只通过高级筛选入口展示查询项。
 5. 表单页必填、只读、隐藏等规则有明确来源。
 6. 详情页不生成保存按钮。
-7. 列表页新增/修改/查看 URL 中的 `pageId` 取自目标表单页 JSON 的顶层 `pageId`。
+7. 列表页新增/修改/查看 URL 中的 `pageId` 取自目标表单页文件的顶层 `pageId`。
 8. 工作流引用的申请、审批、浏览页面 `pagetag` 已存在。
 9. 模块菜单 URL 指向的 `pagetag` 已存在。
 

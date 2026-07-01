@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _common import json_load, print_err, print_warn, yaml_load  # noqa: E402
+from _common import print_err, print_warn, yaml_load  # noqa: E402
 
 
 ASSET_DIRS = ["codeitem", "mis", "module", "event", "api", "workflow", "page"]
@@ -21,8 +21,6 @@ ASSET_DIRS = ["codeitem", "mis", "module", "event", "api", "workflow", "page"]
 
 def load_any(path: Path):
     try:
-        if path.suffix.lower() == ".json":
-            return json_load(path)
         return yaml_load(path)
     except Exception:
         return None
@@ -76,7 +74,7 @@ def inventory(app_root: Path) -> dict:
         asset_dir = app_root / asset_type
         if not asset_dir.is_dir():
             continue
-        patterns = ["*.json"] if asset_type == "page" else ["*.yml", "*.yaml"]
+        patterns = ["*.page.yml"] if asset_type == "page" else ["*.yml", "*.yaml"]
         for pattern in patterns:
             for path in sorted(asset_dir.glob(pattern)):
                 result["assets"][asset_type].append(summarize_file(asset_type, path))

@@ -192,7 +192,7 @@ python3 scripts/validate_yml.py <app-root>/workflow/<流程名>.workflow.yml
 home/vuepagedesigner/renderer/<add|detail>?pagetag=<page_tag>
 ```
 
-`<page_tag>` 取自同应用 `<apptag>/page/<...>.json` 顶层 `pagetag` 字段。
+`<page_tag>` 取自同应用 `<apptag>/page/<...>.page.yml` 顶层 `pagetag` 字段。
 
 ### 多页面时的对应关系
 
@@ -206,7 +206,7 @@ home/vuepagedesigner/renderer/<add|detail>?pagetag=<page_tag>
 
 skill 在生成工作流前按以下顺序确定 pagetag：
 
-1. 扫同应用 `<apptag>/page/` 目录，统计 `*.json` 数量。
+1. 扫同应用 `<apptag>/page/` 目录，统计 `*.page.yml` 数量。
 2. **仅 1 份**：自动取该页面的 pagetag（form 与 detail 都用它）。
 3. **多份**：以编号列表向用户问"哪个页面用作申请/审批节点（表单页）、哪个用作浏览节点（详情页）"。
 4. 脚本对应参数：`add_workflow.py --pagetag-form <表单页 pagetag> --pagetag-detail <详情页 pagetag>`，未传时按上述自动推断。

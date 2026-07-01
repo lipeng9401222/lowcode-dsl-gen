@@ -282,8 +282,8 @@ spec:
       source: "repo_inferred"
       repoEvidence:
         paths:
-          - "page/purchaseproject_form.json"
-          - "page/purchaseproject_detail.json"
+          - "page/purchaseproject_form.page.yml"
+          - "page/purchaseproject_detail.page.yml"
     sqlTableName:
       status: "confirmed"
       source: "repo_inferred"
